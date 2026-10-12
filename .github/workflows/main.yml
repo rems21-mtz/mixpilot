@@ -1,0 +1,38 @@
+name: Compiler MixPilot
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows (VST3)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache JUCE
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-8.0.4-windows
+
+      - name: Configurer
+        run: cmake -B build -A x64
+
+      - name: Compiler
+        run: cmake --build build --config Release --parallel
+
+      - name: Rassembler les plugins
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Copy-Item -Recurse build/MixPilotMaster_artefacts/Release/VST3/*.vst3 out/
+          Copy-Item -Recurse build/MixPilotTrack_artefacts/Release/VST3/*.vst3 out/
+          Copy-Item README.md out/
+          Get-ChildItem out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MixPilot-Windows-VST3
+          path: out/
