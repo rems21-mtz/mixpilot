@@ -36,7 +36,7 @@ private:
     juce::ComboBox instrumentBox, genreBox;
     juce::Slider amountSlider;
     juce::TextButton listenBtn, bypassBtn { "BYPASS" }, followBtn, helpBtn;
-    juce::TextButton gainOn { "GAIN" }, eqOn { "EQ" }, compOn { "COMPRESSION" }, duckOn { "ESPACE" };
+    juce::TextButton gainOn { "GAIN" }, eqOn { "EQ" }, compOn { "COMPRESSION" }, duckOn { "SPACE" };
     mp::ui::SpectrumView spectrum;
     mp::ui::TipsBar tipsBar;
     std::unique_ptr<mp::ui::HelpOverlay> help;

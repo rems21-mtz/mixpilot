@@ -17,18 +17,18 @@ AudioProcessorValueTreeState::ParameterLayout TrackProcessor::createLayout()
 
     StringArray insts { "Auto" };
     for (int i = 0; i < mp::NumInstruments; ++i) insts.add (String::fromUTF8 (mp::instrumentProfile (i).name));
-    StringArray genres { "Suivre le Master" };
+    StringArray genres { "Follow Master" };
     for (int i = 0; i < mp::NumGenres; ++i) genres.add (String::fromUTF8 (mp::genreProfile (i).name));
 
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { "instrument", 1 }, "Instrument", insts, 0));
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { "genre", 1 }, "Style", genres, 0));
-    l.add (std::make_unique<AudioParameterFloat>  (ParameterID { "amount", 1 }, String::fromUTF8 ("Intensité"), NormalisableRange<float> (0, 1), 0.8f, pc));
-    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "gainOn", 1 }, "Gain actif", true));
-    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "eqOn", 1 },   "EQ actif", true));
-    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "compOn", 1 }, "Compression active", true));
-    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "duckOn", 1 }, "Espace actif", true));
+    l.add (std::make_unique<AudioParameterFloat>  (ParameterID { "amount", 1 }, String::fromUTF8 ("Intensity"), NormalisableRange<float> (0, 1), 0.8f, pc));
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "gainOn", 1 }, "Gain on", true));
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "eqOn", 1 },   "EQ on", true));
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "compOn", 1 }, "Compression on", true));
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "duckOn", 1 }, "Space on", true));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { "bypass", 1 }, "Bypass", false));
-    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "followMaster", 1 }, String::fromUTF8 ("Suivre les corrections du Master"), true));
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "followMaster", 1 }, String::fromUTF8 ("Follow Master corrections"), true));
     return l;
 }
 
@@ -270,13 +270,13 @@ String TrackProcessor::getStatusText() const
 {
     switch (phase)
     {
-        case Phase::Idle:      return String::fromUTF8 ("Clique sur ÉCOUTER pendant que la piste joue (ou lance l'Assistant du Master)");
-        case Phase::Listening: return String::fromUTF8 ("Écoute de la piste…");
-        case Phase::Solving:   return String::fromUTF8 ("Comparaison avec les autres pistes…");
-        case Phase::Settling:  return String::fromUTF8 ("Calage du niveau…");
-        case Phase::Locked:    return String::fromUTF8 ("Corrigée pour : ") + String::fromUTF8 (mp::genreProfile (getEffectiveGenre()).name)
+        case Phase::Idle:      return String::fromUTF8 ("Click LISTEN while the track is playing (or run the Master's Assistant)");
+        case Phase::Listening: return String::fromUTF8 ("Listening to the track…");
+        case Phase::Solving:   return String::fromUTF8 ("Comparing with the other tracks…");
+        case Phase::Settling:  return String::fromUTF8 ("Setting the level…");
+        case Phase::Locked:    return String::fromUTF8 ("Corrected for: ") + String::fromUTF8 (mp::genreProfile (getEffectiveGenre()).name)
                                       + " / " + String::fromUTF8 (mp::outputProfile (getEffectiveOutput()).name);
-        case Phase::NoSignal:  return String::fromUTF8 ("Aucun son détecté : lance la lecture puis réessaie");
+        case Phase::NoSignal:  return String::fromUTF8 ("No sound detected: start playback and try again");
     }
     return {};
 }
@@ -478,7 +478,7 @@ void TrackProcessor::timerCallback()
             s.hasProfile.store (1);
         }
         const auto nm = getTrackName();
-        s.setName ((nm.isNotEmpty() ? nm : String ("Piste ") + String (slot + 1)).toRawUTF8());
+        s.setName ((nm.isNotEmpty() ? nm : String ("Track ") + String (slot + 1)).toRawUTF8());
     }
 }
 
@@ -495,53 +495,53 @@ StringArray TrackProcessor::getTips() const
     const bool manual = (int) param ("instrument") > 0;
 
     if (param ("bypass") > 0.5f)
-        tips.add (u ("BYPASS est actif : cette piste n'est pas corrigée."));
+        tips.add (u ("BYPASS is on: this track is not being corrected."));
     if (! isLinked())
-        tips.add (u ("Ajoute MixPilot Master sur la piste Master : cette piste suivra alors le style, la sortie et les corrections du mix."));
+        tips.add (u ("Add MixPilot Master to the Master track: this track will then follow the mix's style, output and corrections."));
     if (! learned.valid)
-        tips.add (u ("Clique ÉCOUTER pendant que la piste joue (8 s), ou lance l'ASSISTANT depuis le Master pour analyser toutes les pistes d'un coup."));
+        tips.add (u ("Click LISTEN while the track is playing (8 s), or run the ASSISTANT from the Master to analyze every track at once."));
     if (phase == Phase::NoSignal)
-        tips.add (u ("Aucun son n'a été entendu : lance la lecture (la piste doit jouer), puis réessaie."));
+        tips.add (u ("No sound was heard: start playback (the track must be playing), then try again."));
     if (inPeakHold > 0.5f)
-        tips.add (u ("Le son arrive saturé (") + String (inPeakHold, 1) + u (" dBFS) : baisse le volume de l'instrument ou de l'effet placé avant MixPilot."));
+        tips.add (u ("The input is clipping (") + String (inPeakHold, 1) + u (" dBFS): lower the instrument or the effect placed before MixPilot."));
 
     if (learned.valid)
     {
         if (! manual && detection.confidence < 0.6f)
-            tips.add (u ("Détection incertaine (") + String (roundToInt (detection.confidence * 100)) + u (" %) : vérifie l'INSTRUMENT et choisis-le à la main si besoin."));
+            tips.add (u ("Uncertain detection (") + String (roundToInt (detection.confidence * 100)) + u (" %): check the INSTRUMENT and pick it manually if needed."));
         if (manual && detection.instrument != getResolvedInstrument())
-            tips.add (u ("Instrument choisi à la main. L'analyse entendait plutôt : ") + u (mp::instrumentProfile (detection.instrument).name) + ".");
+            tips.add (u ("Instrument picked manually. The analysis heard: ") + u (mp::instrumentProfile (detection.instrument).name) + ".");
         if (appliedTrim.load() > 12.0f)
-            tips.add (u ("Piste très faible à la source (+") + String (appliedTrim.load(), 1) + u (" dB) : monte-la dans l'instrument pour un meilleur rapport signal/bruit."));
+            tips.add (u ("Very quiet source (+") + String (appliedTrim.load(), 1) + u (" dB): turn it up in the instrument for a better signal-to-noise ratio."));
         if (appliedTrim.load() < -12.0f)
-            tips.add (u ("Piste très forte à la source (") + String (appliedTrim.load(), 1) + u (" dB) : baisse-la dans l'instrument pour garder de la marge."));
+            tips.add (u ("Very loud source (") + String (appliedTrim.load(), 1) + u (" dB): turn it down in the instrument to keep headroom."));
         if (comp.gainReductionDb.load() > 8.0f)
-            tips.add (u ("Compression forte : baisse l'INTENSITÉ si la piste perd de la vie."));
+            tips.add (u ("Heavy compression: lower the INTENSITY if the track loses its life."));
         if (getResolvedInstrument() == mp::Bass && c.duckDepthDb > 0.05f && param ("duckOn") < 0.5f)
-            tips.add (u ("Active ESPACE : la basse laissera passer le kick (graves plus clairs)."));
+            tips.add (u ("Turn on SPACE: the bass will make room for the kick (cleaner low end)."));
         if (getResolvedInstrument() == mp::Bass && c.duckDepthDb <= 0.05f && isLinked())
-            tips.add (u ("Aucun kick relié : mets MixPilot Track sur ton kick pour que la basse lui fasse de la place automatiquement."));
+            tips.add (u ("No kick linked: put MixPilot Track on your kick so the bass makes room for it automatically."));
 
         int worst = -1; float w = 0;
         for (int b = 0; b < mp::kBands; ++b) if (std::abs (c.mixDb[(size_t) b]) > std::abs (w)) { w = c.mixDb[(size_t) b]; worst = b; }
         if (worst >= 0 && std::abs (w) > 0.3f)
         {
             const float f = mp::kBandFreqs[(size_t) worst];
-            tips.add (u ("Le Master demande ") + (w > 0 ? "+" : "") + String (w, 1) + u (" dB autour de ")
+            tips.add (u ("The Master asks for ") + (w > 0 ? "+" : "") + String (w, 1) + u (" dB around ")
                       + (f >= 1000 ? String (f / 1000, 0) + " kHz" : String ((int) f) + " Hz")
-                      + u (" à cette piste pour équilibrer le mix (barres violettes)."));
+                      + u (" on this track to balance the mix (purple bars)."));
         }
         if (getResolvedInstrument() == mp::Instrumental && c.voiceDuckDb <= 0.05f && isLinked())
-            tips.add (u ("Mashup : mets MixPilot Track sur l'acapella (instrument « Acapella ») : cette instru lui fera de la place automatiquement."));
+            tips.add (u ("Mashup: put MixPilot Track on the acapella (instrument \"Acapella\"): this instrumental will make room for it automatically."));
         if (getResolvedInstrument() == mp::Instrumental && c.voiceDuckDb > 0.05f && param ("duckOn") < 0.5f)
-            tips.add (u ("Active ESPACE : l'instru se creusera dans les médiums quand la voix chante."));
+            tips.add (u ("Turn on SPACE: the instrumental will dip its mids while the vocal sings."));
         if (getResolvedInstrument() == mp::Vocal && ! manual)
-            tips.add (u ("Si c'est une acapella complète (voix d'un autre morceau), choisis INSTRUMENT = Acapella pour la rendre prioritaire."));
+            tips.add (u ("If this is a full acapella (vocal from another song), set INSTRUMENT = Acapella to give it priority."));
         if (isLinked() && param ("followMaster") < 0.5f)
-            tips.add (u ("SUIVRE MASTER est désactivé : cette piste ignore les corrections demandées par le Master."));
+            tips.add (u ("FOLLOW MASTER is off: this track ignores the corrections requested by the Master."));
     }
     if (tips.isEmpty())
-        tips.add (u ("Tout est en ordre. Astuce : passe la souris sur chaque élément pour une explication, ou clique sur ?."));
+        tips.add (u ("All good. Tip: hover over any control for an explanation, or click ?."));
     return tips;
 }
 

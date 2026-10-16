@@ -14,7 +14,7 @@ namespace mp
     struct ReviewItem
     {
         int severity = SevOk;
-        juce::String title;     // ex. "Basse" ou "Volume final"
+        juce::String title;     // ex. "Bass" ou "Final loudness"
         juce::String text;      // constat + action conseillée
     };
 

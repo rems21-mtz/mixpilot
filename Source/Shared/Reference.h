@@ -30,8 +30,8 @@ namespace mp
         juce::AudioFormatManager fm;
         fm.registerBasicFormats();
         std::unique_ptr<juce::AudioFormatReader> reader (fm.createReaderFor (file));
-        if (reader == nullptr) { error = juce::String::fromUTF8 ("Format non reconnu (WAV, AIFF, FLAC, MP3, M4A acceptés)"); return {}; }
-        if (reader->lengthInSamples < (juce::int64) (reader->sampleRate * 5)) { error = juce::String::fromUTF8 ("Fichier trop court (5 s minimum)"); return {}; }
+        if (reader == nullptr) { error = juce::String::fromUTF8 ("Unsupported format (WAV, AIFF, FLAC, MP3, M4A accepted)"); return {}; }
+        if (reader->lengthInSamples < (juce::int64) (reader->sampleRate * 5)) { error = juce::String::fromUTF8 ("File too short (5 s minimum)"); return {}; }
 
         auto ref = std::make_unique<ReferenceData>();
         ref->name = file.getFileNameWithoutExtension();
@@ -136,7 +136,7 @@ namespace mp
         float mx = 0; for (auto v : ref->overview) mx = std::max (mx, v);
         if (mx > 0) for (auto& v : ref->overview) v /= mx;
 
-        if (! ref->learn.valid) { error = juce::String::fromUTF8 ("Fichier silencieux ou illisible"); return {}; }
+        if (! ref->learn.valid) { error = juce::String::fromUTF8 ("File is silent or unreadable"); return {}; }
         return ref;
     }
 }

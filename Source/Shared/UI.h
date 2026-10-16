@@ -392,7 +392,7 @@ namespace mp::ui
             viewport.setViewedComponent (&page, false);
             viewport.setScrollBarsShown (true, false);
             viewport.setScrollBarThickness (8);
-            closeBtn.setButtonText ("FERMER");
+            closeBtn.setButtonText ("CLOSE");
             closeBtn.onClick = [this] { setVisible (false); };
             addAndMakeVisible (closeBtn);
             page.owner = this;
@@ -473,7 +473,7 @@ namespace mp::ui
     class TipsBar : public juce::Component, public juce::SettableTooltipClient
     {
     public:
-        TipsBar() { setTooltip (juce::String::fromUTF8 ("Conseils automatiques selon la situation. Clique pour passer au conseil suivant.")); }
+        TipsBar() { setTooltip (juce::String::fromUTF8 ("Automatic tips based on the situation. Click to see the next tip.")); }
 
         void setTips (const juce::StringArray& t)
         {
@@ -492,7 +492,7 @@ namespace mp::ui
             g.setColour (col::accent.withAlpha (0.35f)); g.drawRoundedRectangle (r.reduced (0.5f), 4.0f, 1.0f);
             auto left = r.removeFromLeft (110);
             g.setColour (col::accent); g.setFont (font (11.0f, true));
-            g.drawText (juce::String::fromUTF8 ("CONSEIL ") + (tips.size() > 1 ? juce::String (index + 1) + "/" + juce::String (tips.size()) : juce::String()),
+            g.drawText (juce::String::fromUTF8 ("TIP ") + (tips.size() > 1 ? juce::String (index + 1) + "/" + juce::String (tips.size()) : juce::String()),
                         left.reduced (12, 0), juce::Justification::centredLeft);
             g.setColour (col::text); g.setFont (font (12.0f));
             if (index < tips.size())
@@ -516,7 +516,7 @@ namespace mp::ui
             viewport.setViewedComponent (&page, false);
             viewport.setScrollBarsShown (true, false);
             viewport.setScrollBarThickness (8);
-            closeBtn.setButtonText ("FERMER");
+            closeBtn.setButtonText ("CLOSE");
             closeBtn.onClick = [this] { setVisible (false); };
             addAndMakeVisible (closeBtn);
             page.owner = this;
@@ -551,10 +551,10 @@ namespace mp::ui
             g.setFont (font (9.5f, true)); g.drawText ("/ 100", scoreBox.withTrimmedTop (34), juce::Justification::centred);
             head.removeFromLeft (14);
             g.setColour (col::text); g.setFont (font (18.0f, true));
-            g.drawText (juce::String::fromUTF8 ("Révision du mix"), head.removeFromTop (26), juce::Justification::centredLeft);
+            g.drawText (juce::String::fromUTF8 ("Mix review"), head.removeFromTop (26), juce::Justification::centredLeft);
             g.setFont (font (12.5f)); g.setColour (col::textDim);
-            g.drawText (review.verdict + "   " + juce::String (review.problems) + juce::String::fromUTF8 (" problème(s) · ")
-                        + juce::String (review.warnings) + juce::String::fromUTF8 (" point(s) à vérifier"), head, juce::Justification::centredLeft);
+            g.drawText (review.verdict + "   " + juce::String (review.problems) + juce::String::fromUTF8 (" problem(s) · ")
+                        + juce::String (review.warnings) + juce::String::fromUTF8 (" point(s) to check"), head, juce::Justification::centredLeft);
         }
 
         void resized() override
@@ -631,7 +631,7 @@ namespace mp::ui
     {
         b.setButtonText ("?");
         b.setColour (juce::TextButton::buttonColourId, col::panelHi);
-        b.setTooltip (juce::String::fromUTF8 ("Ouvre le guide complet du plugin (chaque section expliquée)."));
+        b.setTooltip (juce::String::fromUTF8 ("Opens the full plug-in guide (every section explained)."));
     }
 }
 

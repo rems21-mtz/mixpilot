@@ -36,3 +36,60 @@ jobs:
         with:
           name: MixPilot-Windows-VST3
           path: out/
+
+  macos:
+    name: macOS (VST3 + AU, universal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache JUCE
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-8.0.4-macos
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Package
+        run: |
+          set -e
+          V=$(grep -m1 '^project(MixPilot VERSION' CMakeLists.txt | sed -E 's/.*VERSION ([0-9.]+).*/\1/')
+          P=pkg/MixPilot
+          mkdir -p "$P/VST3" "$P/AU"
+          cp -R build/MixPilotMaster_artefacts/Release/VST3/*.vst3 build/MixPilotTrack_artefacts/Release/VST3/*.vst3 "$P/VST3/"
+          cp -R build/MixPilotMaster_artefacts/Release/AU/*.component build/MixPilotTrack_artefacts/Release/AU/*.component "$P/AU/"
+          for b in "$P"/VST3/*.vst3 "$P"/AU/*.component; do codesign --force --deep -s - "$b"; lipo -info "$b/Contents/MacOS/"*; done
+          cat > "$P/INSTALL.txt" <<EOF
+          MixPilot v$V for macOS (Apple Silicon + Intel, macOS 11+)
+          Free, pay what you want: https://buymeacoffee.com/remsplugins
+          Download page: https://remsplugins.github.io/
+
+          INSTALL
+          1. Copy everything in the VST3 folder to:
+             ~/Library/Audio/Plug-Ins/VST3
+          2. Copy everything in the AU folder to (Logic, GarageBand, Ableton AU):
+             ~/Library/Audio/Plug-Ins/Components
+          3. Restart your DAW and rescan plug-ins.
+             Ableton Live: Settings > Plug-Ins > Rescan.
+
+          Put MixPilot Track last on every track, MixPilot Master last on the
+          Master, then press ASSISTANT while the loudest part plays.
+
+          IF MACOS BLOCKS THE PLUG-IN
+          The plug-ins are not notarized by Apple yet. Open Terminal and run:
+             xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/MixPilot*.vst3 ~/Library/Audio/Plug-Ins/Components/MixPilot*.component
+          Then restart your DAW.
+          EOF
+          sed -i '' 's/^          //' "$P/INSTALL.txt"
+          (cd pkg && ditto -c -k --sequesterRsrc --keepParent MixPilot "MixPilot-$V-macOS.zip")
+          ls -la pkg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MixPilot-macOS
+          path: pkg/*.zip

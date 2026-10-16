@@ -62,7 +62,7 @@ private:
     juce::ComboBox genreBox, outputBox, targetBox;
     juce::Slider amountSlider, shareSlider;
     juce::TextButton assistantBtn { "ASSISTANT" }, compareBtn { "A/B" }, bypassBtn { "BYPASS" }, resetLufsBtn { "RESET" }, helpBtn;
-    juce::TextButton eqOn { "EQ" }, dynOn { "DYNAMIQUE" }, imageOn { "IMAGE" }, maxOn { "MAXIMIZER" };
+    juce::TextButton eqOn { "EQ" }, dynOn { "DYNAMICS" }, imageOn { "IMAGE" }, maxOn { "MAXIMIZER" };
     juce::TextButton loadRefBtn, clearRefBtn { "X" }, listenRefBtn, matchRefBtn, refLevelBtn;
 
     juce::Slider eqSliders[mp::kBands + 1];
