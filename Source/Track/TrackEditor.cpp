@@ -16,44 +16,44 @@ namespace
               u ("1. Put MixPilot Track LAST on the track (on a MIDI track: after the instrument and its effects).\n"
                  "2. Put MixPilot Master on the Master track to link all the tracks.\n"
                  "3. Run the ASSISTANT from the Master (or click LISTEN here while the track plays).\n"
-                 "4. The track recognizes its instrument and corrects itself. Adjust the INTENSITY to taste.") },
+                 "4. The track recognises its instrument and corrects itself. Adjust AMOUNT to taste.") },
             { u ("Link with the Master"),
-              u ("The dot at the top shows whether a MixPilot Master is present. If it is, the track follows its STYLE and OUTPUT, "
-                 "receives its share of the mix correction (see Follow Master), and appears in its \"Linked tracks\" list.\n"
+              u ("The pill at the top shows whether a MixPilot Master is present. If it is, the track follows its STYLE and OUTPUT, "
+                 "receives its share of the mix correction (see Follow Master), and shows up in its \"Linked tracks\" list.\n"
                  "Without a Master, the track works on its own (Pop style by default, or the one you choose).") },
             { u ("Instrument"),
               u ("AUTO: detected while listening (lows/highs, attacks, tonal or noisy sound, level changes). The confidence is shown on the right.\n"
-                 "If the detection is wrong, pick the instrument manually: every correction adapts instantly.") },
-            { u ("Mashups: Full instrumental + Acapella"),
-              u ("FULL INSTRUMENTAL: for a beat or the instrumental version of a song. The track is treated as a full mix (balance of the chosen style, gentle \"glue\" compression).\n"
-                 "ACAPELLA: for a solo vocal. It gets priority over everything else.\n"
-                 "When both are linked, the instrumental automatically dips its mids (800 Hz – 5 kHz) whenever the vocal sings: the vocal comes forward without turning it up. The setting is in the SPACE card.\n"
-                 "MixPilot handles the sound; tempo and key are set in your DAW (Warp, Transpose).") },
-            { u ("Style and Intensity"),
-              u ("STYLE: \"Follow Master\" (recommended) or a fixed style for this track.\n"
-                 "INTENSITY: amount of correction (0 % = none, 100 % = full).") },
+                 "If detection gets it wrong, pick the instrument by hand: every correction adapts immediately.") },
+            { u ("Mashups: Full instrumental + A cappella"),
+              u ("FULL INSTRUMENTAL: for a beat or the instrumental version of a song. The track is treated as a whole mix (balance of the chosen style, gentle \"glue\" compression).\n"
+                 "A CAPPELLA: for a solo vocal. It takes priority over everything else.\n"
+                 "When both are linked, the instrumental automatically dips its mids (800 Hz – 5 kHz) as soon as the vocal sings: the vocal comes forward without raising its level. It's set in the SPACE card.\n"
+                 "MixPilot handles the sound; tempo and key are set in Ableton (Warp, Transpose).") },
+            { u ("Style and Amount"),
+              u ("STYLE: \"Follow Master\" (recommended) or a style forced for this track.\n"
+                 "AMOUNT: how much correction (0 % = none, 100 % = full).") },
             { u ("Listen"),
-              u ("Analyzes the track for 8 s. Do it during a representative section where the track plays clearly. "
-                 "The Master's ASSISTANT triggers listening on every track at the same time.") },
+              u ("Analyses the track for 8 s. Do it during a representative section where the track plays clearly. "
+                 "The Master's ASSISTANT triggers listening on all tracks at once.") },
             { u ("Spectrum"),
               u ("Grey: the sound before MixPilot. Blue: after. Orange dots: the instrument's ideal shape. Green: the applied EQ curve (low cut included).") },
             { u ("Gain"),
-              u ("Sets the track at the right level in the mix, based on the instrument, style and output (e.g. vocals further forward in Pop, louder kick in Electronic and Club). "
-                 "The gain is checked after EQ and compression so it lands exactly.") },
-            { u ("Clean-up"),
+              u ("Sets the track at the right level in the mix, according to instrument, style and output (e.g. vocal further forward in Pop, louder kick in Electro and Club). "
+                 "Gain is checked after EQ and compression to land right.") },
+            { u ("Cleanup"),
               u ("Low cut tuned to the instrument: it removes useless lows (noise, resonances) that muddy the mix, especially when many tracks add up.") },
             { u ("EQ"),
-              u ("GREEN: moves the spectrum toward the instrument's ideal shape (never boosts where the instrument has no content).\n"
+              u ("GREEN: brings the spectrum closer to the instrument's ideal shape (never boosts where the instrument has no content).\n"
                  "ORANGE: anti-masking, the track dips slightly where a priority track plays (e.g. a synth around the vocal).\n"
                  "PURPLE: correction requested by the Master to balance the whole mix, shared between tracks according to what they contribute.") },
             { u ("Compression"),
-              u ("Ratio, attack and release tuned to the instrument (fast on a snare, slow on a pad), and denser depending on the style. GR = current gain reduction.") },
+              u ("Ratio, attack and release suited to the instrument (fast on a snare, slow on a pad), and denser depending on the style. GR = current gain reduction.") },
             { u ("Space"),
-              u ("On a BASS: its lows duck automatically on every kick hit, with no sidechain routing. It needs a MixPilot Track on the kick.\n"
+              u ("On a BASS: its lows automatically drop on every kick hit (ducking), no sidechain routing needed. Requires a MixPilot Track on the kick.\n"
                  "On a KICK: it drives that ducking.\n"
                  "On other tracks: shows the anti-masking applied.") },
             { u ("Follow Master"),
-              u ("On: the track applies its share of the mix correction requested by the Master (the Master's SPLIT slider sets that share).\n"
+              u ("On: the track applies its share of the mix correction requested by the Master (the Master's SPLIT slider sets this share).\n"
                  "Off: the track only corrects itself.") },
             { u ("Bypass"),
               u ("Turns off all processing on this track (handy for comparing).") },
@@ -72,10 +72,10 @@ TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (
     for (auto& z : cardZones) addAndMakeVisible (z);
     linkZone.setTooltip (u ("Green: a MixPilot Master is present, this track follows its style, output and corrections. Grey: the track works on its own."));
     statusZone.setTooltip (u ("Track analysis status and the settings it follows."));
-    detectZone.setTooltip (u ("Detected instrument and its character: lows/mids/highs balance, percussive (fast attacks) or sustained."));
+    detectZone.setTooltip (u ("Recognised instrument and its character: lows/mids/highs balance, percussive (fast attacks) or sustained."));
     cardZones[0].setTooltip (u ("GAIN: sets the track at the right level in the mix (measured level → target level)."));
-    cardZones[1].setTooltip (u ("CLEAN-UP: low cut that removes useless lows from this track."));
-    cardZones[2].setTooltip (u ("EQ: green = toward the ideal shape, orange = room left for other tracks, purple = requested by the Master to balance the mix."));
+    cardZones[1].setTooltip (u ("CLEANUP: low cut that removes useless lows from this track."));
+    cardZones[2].setTooltip (u ("EQ: green = towards the ideal shape, orange = room made for other tracks, purple = requested by the Master to balance the mix."));
     cardZones[3].setTooltip (u ("COMPRESSION: controls the track's dynamics. GR = current gain reduction."));
     cardZones[4].setTooltip (u ("SPACE: bass ducking under the kick, full instrumental dipping under the vocal, or anti-masking between tracks."));
 
@@ -83,7 +83,7 @@ TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (
     for (int i = 0; i < mp::NumInstruments; ++i) instrumentBox.addItem (instName (i), i + 2);
     genreBox.addItem ("Follow Master", 1);
     for (int i = 0; i < mp::NumGenres; ++i) genreBox.addItem (u (mp::genreProfile (i).name), i + 2);
-    instrumentBox.setTooltip (u ("The track's instrument. AUTO = detected while listening. Pick it manually if the detection is wrong."));
+    instrumentBox.setTooltip (u ("Track instrument. AUTO = detected while listening. Pick it by hand if detection gets it wrong."));
     genreBox.setTooltip (u ("Target style. \"Follow Master\" (recommended) uses the style chosen on MixPilot Master."));
     addAndMakeVisible (instrumentBox); addAndMakeVisible (genreBox);
     instAtt  = std::make_unique<CA> (vts, "instrument", instrumentBox);
@@ -95,13 +95,13 @@ TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (
     amountSlider.setColour (Slider::backgroundColourId, col::border);
     amountSlider.setColour (Slider::thumbColourId, col::text);
     amountSlider.setColour (Slider::textBoxOutlineColourId, Colours::transparentBlack);
-    amountSlider.setTooltip (u ("Amount of correction: 0 % = none, 100 % = full."));
+    amountSlider.setTooltip (u ("How much correction: 0 % = none, 100 % = full."));
     addAndMakeVisible (amountSlider);
     amountAtt = std::make_unique<SA> (vts, "amount", amountSlider);
 
-    listenBtn.setButtonText (u ("LISTEN"));
+    listenBtn.setButtonText ("LISTEN");
     listenBtn.setColour (TextButton::buttonColourId, col::accent2.darker (0.35f));
-    listenBtn.setTooltip (u ("Analyzes this track for 8 s (it must be playing). The Master's ASSISTANT does it for every track at once."));
+    listenBtn.setTooltip (u ("Analyses this track for 8 s (it must be playing). The Master's ASSISTANT does it for all tracks at once."));
     listenBtn.onClick = [this] { proc.startListening (8); };
     addAndMakeVisible (listenBtn);
 
@@ -118,14 +118,14 @@ TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (
     followBtn.setButtonText ("FOLLOW MASTER");
     stylePower (followBtn);
     followBtn.setColour (TextButton::buttonOnColourId, col::purple.darker (0.35f));
-    followBtn.setTooltip (u ("Applies the share of the mix correction requested by the Master (purple bars). Off: the track only corrects itself."));
+    followBtn.setTooltip (u ("Applies the share of mix correction requested by the Master (purple bars). Off: the track only corrects itself."));
     addAndMakeVisible (followBtn);
     buttonAtt.push_back (std::make_unique<BA> (vts, "followMaster", followBtn));
 
     struct P { TextButton* b; const char* id; const char* tip; };
     P powers[] = {
         { &gainOn, "gainOn", "Turns the placement gain on/off." },
-        { &eqOn,   "eqOn",   "Turns the EQ and low cut on/off (including the share requested by the Master)." },
+        { &eqOn,   "eqOn",   "Turns EQ and low cut on/off (including the share requested by the Master)." },
         { &compOn, "compOn", "Turns compression on/off." },
         { &duckOn, "duckOn", "Turns ducking on/off (bass under the kick, full instrumental under the vocal)." } };
     for (auto& pw : powers)
@@ -204,14 +204,14 @@ void TrackEditor::paint (Graphics& g)
         g.setFont (font (10.5f)); g.setColour (col::textDim);
         const String sub = linked ? u (mp::genreProfile (proc.getEffectiveGenre()).name).upToFirstOccurrenceOf (" ", false, false)
                                     + " / " + u (mp::outputProfile (proc.getEffectiveOutput()).name).upToFirstOccurrenceOf (" ", false, false)
-                                  : u ("No Master detected");
+                                  : u ("Master not detected");
         g.drawText (sub, r.withTrimmedLeft (26).withTrimmedTop (r.getHeight() / 2 - 1), Justification::centredLeft);
     }
 
     g.setFont (font (10.0f, true)); g.setColour (col::textDim);
     g.drawText ("INSTRUMENT", instrumentBox.getX(), 4, 120, 12, Justification::left);
     g.drawText ("STYLE",      genreBox.getX(),      4, 120, 12, Justification::left);
-    g.drawText (u ("INTENSITY"), amountSlider.getX(), 4, 120, 12, Justification::left);
+    g.drawText ("AMOUNT", amountSlider.getX(), 4, 120, 12, Justification::left);
 
     {
         auto r = statusArea;
@@ -249,9 +249,9 @@ void TrackEditor::drawDetection (Graphics& g, Rectangle<int> area)
 
     g.setFont (font (11.5f)); g.setColour (det.confidence < 0.6f && ! manual && proc.hasProfile() ? col::warn : col::textDim);
     String sub;
-    if (manual)                 sub = u ("Picked manually") + (proc.hasProfile() ? u (" (detected: ") + instName (det.instrument) + ")" : String());
+    if (manual)                 sub = u ("Picked by hand") + (proc.hasProfile() ? u (" (detected: ") + instName (det.instrument) + ")" : String());
     else if (proc.hasProfile()) sub = u ("Auto-detected · confidence ") + String (roundToInt (det.confidence * 100)) + " %";
-    else                        sub = u ("Not analyzed yet");
+    else                        sub = u ("Not analysed yet");
     g.drawText (sub, r.removeFromTop (18), Justification::centredLeft);
     r.removeFromTop (10);
 
@@ -259,7 +259,7 @@ void TrackEditor::drawDetection (Graphics& g, Rectangle<int> area)
     const auto& L = proc.getLearned();
     const float perc = mp::percussiveness (L);
     std::pair<String, float> feats[] = {
-        { "Lows",    L.low },  { u ("Low mids"), L.lowmid }, { u ("Mids"), L.mid }, { "Highs", L.high },
+        { "Lows",    L.low },  { "Low mids", L.lowmid }, { "Mids", L.mid }, { "Highs", L.high },
         { "Percussive", perc },   { "Sustained", L.sustain } };
     for (auto& [name, v] : feats)
     {
@@ -314,9 +314,9 @@ void TrackEditor::drawCard (Graphics& g, int i)
 
         case 1:
             g.setFont (font (11.0f, true)); g.setColour (col::text);
-            g.drawText ("CLEAN-UP", area.reduced (12, 10).removeFromTop (22), Justification::centredLeft);
+            g.drawText ("CLEANUP", area.reduced (12, 10).removeFromTop (22), Justification::centredLeft);
             big (String (roundToInt (c.hpfHz)) + " Hz");
-            small (u ("Low cut: removes useless lows that clutter the mix"));
+            small (u ("Low cut: removes lows that clutter the mix"));
             break;
 
         case 2:
@@ -355,9 +355,9 @@ void TrackEditor::drawCard (Graphics& g, int i)
                 g.setColour (cc); g.fillRect ((float) line.getX(), line.getCentreY() - 3.0f, 8.0f, 6.0f);
                 g.setColour (col::textDim); g.drawText (t, line.withTrimmedLeft (12), Justification::centredLeft);
             };
-            legend (col::accent2, u ("toward the ideal shape"));
-            legend (col::warn,    u ("room left for others"));
-            legend (col::purple,  u ("requested by the Master"));
+            legend (col::accent2, u ("towards ideal shape"));
+            legend (col::warn,    u ("room for other tracks"));
+            legend (col::purple,  u ("requested by Master"));
             break;
         }
 
@@ -373,13 +373,13 @@ void TrackEditor::drawCard (Graphics& g, int i)
             if (inst == mp::Instrumental && c.voiceDuckDb > 0.05f)
             {
                 big ("-" + String (c.voiceDuckDb, 1) + " dB", col::warn);
-                small (u ("The instrumental's mids (800 Hz – 5 kHz) dip while the vocal sings"));
-                grBar (vDuckGr, "VOCAL");
+                small (u ("The instrumental's mids (800 Hz – 5 kHz) dip when the vocal sings"));
+                grBar (vDuckGr, "VOX");
             }
             else if (inst == mp::Instrumental)
             {
                 big (u ("Waiting"), col::textDim);
-                small (u ("Put MixPilot Track (Acapella or Vocals) on the vocal: the instrumental will make room for it"));
+                small (u ("Put MixPilot Track (A cappella or Vocal) on the vocal: the instrumental will make room for it"));
             }
             else if (mp::isVoice (inst))
             {
@@ -405,7 +405,7 @@ void TrackEditor::drawCard (Graphics& g, int i)
                 {
                     const float f = mp::kBandFreqs[(size_t) worst];
                     big (String (w, 1) + " dB", col::warn);
-                    small (u ("Anti-masking around ") + (f >= 1000 ? String (f / 1000, 0) + " kHz" : String ((int) f) + " Hz") + u (": makes room for priority tracks"));
+                    small (u ("Anti-masking around ") + (f >= 1000 ? String (f / 1000, 0) + " kHz" : String ((int) f) + " Hz") + u (": makes way for priority tracks"));
                 }
                 else
                 {

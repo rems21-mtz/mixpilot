@@ -14,27 +14,27 @@ namespace
         return {
             { u ("Quick start"),
               u ("1. Put MixPilot Track at the end of every track, and MixPilot Master at the end of the Master track.\n"
-                 "2. Choose the STYLE and the OUTPUT (where the song will be released).\n"
-                 "3. Play the loudest section, then click ASSISTANT (30 to 40 s).\n"
+                 "2. Pick the STYLE and the OUTPUT (where the song will be released).\n"
+                 "3. Start playback on the loudest part, then click ASSISTANT (30 to 40 s).\n"
                  "4. Listen, compare with A/B, then adjust to taste: everything stays editable.") },
             { u ("Style and Output"),
               u ("STYLE sets the target balance (lows, mids, highs), the compression density and the stereo width.\n"
-                 "OUTPUT sets the final loudness (LUFS) and the peak ceiling (dBTP). Streaming (-14) and YouTube (-13) are fixed because those platforms turn loud songs down. "
-                 "SoundCloud, Club, CD and Vinyl follow the style's conventions (e.g. electronic: SoundCloud -8, Club -7, CD -8).\n"
-                 "Changing either one after the Assistant recalculates everything instantly, tracks included, with no new listening pass.") },
-            { u ("Intensity"),
-              u ("Amount of correction applied by the Assistant: 0 % = none, 100 % = full correction. 70 to 85 % gives a natural result.") },
+                 "OUTPUT sets the final loudness (LUFS) and the peak ceiling (dBTP). Streaming (-14) and YouTube (-13) are fixed because these platforms turn loud songs down. "
+                 "SoundCloud, Club, CD and Vinyl follow the style's habits (e.g. electro: SoundCloud -8, Club -7, CD -8).\n"
+                 "Changing either one after the Assistant recalculates everything instantly, tracks included, without listening again.") },
+            { u ("Amount"),
+              u ("How much correction the Assistant applies: 0 % = none, 100 % = full correction. 70 to 85 % gives a natural result.") },
             { u ("Assistant"),
-              u ("Step 1: every linked track listens (8 s), recognizes its instrument and corrects itself.\n"
+              u ("Step 1: every linked track listens (8 s), recognises its instrument and corrects itself.\n"
                  "Step 2: the Master listens to the resulting mix and compares it with the target (style or reference).\n"
                  "Step 3: it sets the final loudness for the chosen output, in several passes.\n"
                  "Click again to stop. Run it again after a big change in the song.") },
             { u ("A/B and Bypass"),
-              u ("A/B plays the original sound AT THE SAME LOUDNESS as the processed sound: you judge quality, not volume (louder always sounds better).\n"
+              u ("A/B plays the original sound AT THE SAME LOUDNESS as the processed sound: you judge quality, not volume (louder always seems better).\n"
                  "BYPASS turns the Master off completely.") },
             { u ("Spectrum"),
-              u ("Grey: what comes in. Blue: what goes out. Orange dots: the target (style or reference). Purple: the loaded reference. Green: the Master's EQ correction.\n"
-                 "The display is tilted so a balanced mix looks roughly flat.") },
+              u ("Grey: what comes in. Blue: what goes out. Orange dots: the target (style or reference). Purple: the loaded reference. Green: the Master EQ correction.\n"
+                 "The display is tilted so that a balanced mix looks roughly flat.") },
             { u ("Loudness"),
               u ("INTEGRATED LUFS: average perceived loudness since the last RESET (the value Spotify, YouTube… measure).\n"
                  "Short term: loudness of the last 3 seconds. True peak: the real peak, including between samples.\n"
@@ -42,44 +42,44 @@ namespace
             { u ("Reference"),
               u ("Drop a song (WAV, AIFF, FLAC, MP3, M4A) on the REFERENCE panel, or click LOAD.\n"
                  "MixPilot measures its spectral balance, loudness, peaks, dynamics (LRA) and stereo width.\n"
-                 "PLAY REF. replaces your output with the reference to compare. With EQUAL VOL., it plays at the same loudness as your mix (a fair comparison).\n"
-                 "Click the waveform to jump to a point in the song.") },
+                 "LISTEN REF replaces your output with the reference for comparison. With MATCH, it plays at the same loudness as your mix (a fair comparison).\n"
+                 "Click the waveform to jump to a position in the song.") },
             { u ("Target"),
-              u ("STYLE: the Assistant targets the typical balance of the chosen style.\n"
-                 "REFERENCE: it targets the spectral balance and stereo width of your reference.\n"
-                 "REF. VOL.: also targets the reference's loudness instead of the output's. Peaks stay below the output ceiling.") },
+              u ("STYLE: the Assistant aims for the typical balance of the chosen style.\n"
+                 "REFERENCE: it aims for the spectral balance and stereo width of your reference.\n"
+                 "REF LVL: also aims for the reference's loudness instead of the output's. Peaks stay under the output ceiling.") },
             { u ("Split Tracks ↔ Master"),
-              u ("When the mix drifts from the target (for example too much low mids), there are two ways to correct it:\n"
-                 "• TRACKS side: the tracks responsible for those frequencies correct themselves, in proportion to what they contribute (more natural sound, each track keeps its place);\n"
-                 "• MASTER side: the Master's EQ corrects the whole mix at once (simpler, more global).\n"
-                 "The slider sets each side's share. In the middle, it's half and half. With no linked track, the Master corrects everything.\n"
+              u ("When the mix drifts from the target (for example too much low-mids), there are two ways to correct it:\n"
+                 "• TRACKS side: the tracks responsible for those frequencies correct themselves, in proportion to what they contribute (more natural, every track keeps its place);\n"
+                 "• MASTER side: the Master EQ corrects the whole mix at once (simpler, more global).\n"
+                 "The slider sets each side's share. In the middle it's half and half. With no linked track, the Master corrects everything.\n"
                  "Tracks show their share in purple in their EQ card.") },
             { u ("EQ"),
               u ("10 octave bands set by the Assistant to bring the mix closer to the target, plus AIR (extreme highs, useful for vinyl). Double-click: back to 0.") },
             { u ("Dynamics"),
-              u ("GLUE: gentle 3-band compression that glues the mix. Higher = denser, but less punch. GR = current gain reduction.\n"
+              u ("GLUE: gentle 3-band compression that holds the mix together. Higher = denser, but less punch. GR = current gain reduction.\n"
                  "WARMTH: light saturation that adds density and roundness.") },
             { u ("Image"),
               u ("WIDTH: widens or narrows the stereo image (100 % = unchanged).\n"
-                 "MONO BASS: makes everything below the chosen frequency mono. Essential for club play and vinyl.") },
+                 "MONO BASS: makes everything below the chosen frequency mono. Essential for clubs and vinyl.") },
             { u ("Maximizer"),
-              u ("PUSH: gain sent into the limiter, this is what raises the loudness.\n"
-                 "CLIP: soft clipping of very short peaks before the limiter (an electronic mastering technique): more loudness without pumping. Too high and the sound gets harsh.\n"
+              u ("PUSH: gain sent into the limiter; this is what raises the loudness.\n"
+                 "CLIP: soft clipping of very short peaks before the limiter (an electro mastering technique): more loudness without pumping. Too high and the sound gets harsh.\n"
                  "CEILING: maximum allowed peak (true peak, measured between samples).\n"
-                 "RELEASE: limiter recovery speed. Short = louder but more aggressive.") },
+                 "RELEASE: how fast the limiter recovers. Short = louder but more aggressive.") },
             { u ("Mix review"),
               u ("The MIX REVIEW button (Linked tracks panel) gives a full report, updated live during playback:\n"
                  "• OVERALL MIX: final loudness, peaks, balance vs target, stereo and phase, compression, headroom.\n"
-                 "• TRACKS: for each one, its gain, any clipping, its detection, the room it leaves for others, the correction requested by the Master.\n"
-                 "• CONFLICTS: tracks fighting over the same frequencies (kick/bass, vocal/instrumental…) and whether it's already fixed. For a mashup, it also checks that the vocal sits above the instrumental.\n"
-                 "Green = OK, blue = info, orange = to check, red = problem. The score out of 100 sums it all up.") },
+                 "• TRACKS: for each one, its gain, any clipping, its detection, the room it makes for others, the correction requested by the Master.\n"
+                 "• CONFLICTS: tracks fighting over the same frequencies (kick/bass, vocal/instrumental…) and whether it's already handled. For a mashup, it also checks that the vocal sits above the instrumental.\n"
+                 "Green = OK, blue = info, orange = check, red = problem. The score out of 100 sums it all up.") },
             { u ("Linked tracks"),
-              u ("List of the MixPilot Track instances in the project, with their instrument and the gain they apply. Green dot = track analyzed and corrected.") },
+              u ("List of the MixPilot Track instances in the project, with their instrument and the gain they apply. Green dot = track analysed and corrected.") },
             { u ("Tips"),
-              u ("The TIP bar analyzes the situation continuously (loudness, peaks, kick/bass, reference…) and suggests what to do. Click it to see the next tip.") },
+              u ("The TIP bar analyses the situation continuously (loudness, peaks, kick/bass, reference…) and suggests what to do. Click it to see the next tip.") },
             { u ("Good practice"),
-              u ("Keep headroom: the mix hitting the Master should not exceed 0 dBFS.\n"
-                 "Always judge with A/B at equal loudness. Take breaks: your ears get used to it.\n"
+              u ("Keep headroom: the mix reaching the Master should not exceed 0 dBFS.\n"
+                 "Always judge with A/B at equal loudness. Take breaks: your ears get used to the sound.\n"
                  "Check on several systems (headphones, speakers, phone).") },
         };
     }
@@ -97,7 +97,7 @@ void RefWaveform::paint (Graphics& g)
         g.setColour (col::purple.withAlpha (0.25f));
         g.fillRoundedRectangle (r.withWidth (r.getWidth() * proc.getReferenceProgress()), 4.0f);
         g.setColour (col::text); g.setFont (font (11.0f, true));
-        g.drawText (u ("Analyzing reference… ") + String (roundToInt (proc.getReferenceProgress() * 100)) + " %", r, Justification::centred);
+        g.drawText (u ("Analysing reference… ") + String (roundToInt (proc.getReferenceProgress() * 100)) + " %", r, Justification::centred);
     }
     else if (ref != nullptr && ! ref->overview.empty())
     {
@@ -135,9 +135,9 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     for (auto* z : { &statusZone, &loudZone, &tracksZone, &refInfoZone, &corrZone }) addAndMakeVisible (z);
     statusZone.setTooltip (u ("Assistant status and the chosen output's target (loudness in LUFS and peak ceiling in dBTP)."));
     loudZone.setTooltip (u ("Loudness readings of your output. Integrated LUFS = average perceived loudness since the last RESET. Green dots mean the output is compliant."));
-    tracksZone.setTooltip (u ("Tracks running MixPilot Track. Green dot = analyzed and corrected. Right: the gain applied to the track."));
-    refInfoZone.setTooltip (u ("Reference info: integrated loudness (LUFS), peak (dBTP), loudness range (LRA) and length."));
-    corrZone.setTooltip (u ("Choose what the Assistant targets (style or reference) and who corrects the mix (the tracks, the Master, or both)."));
+    tracksZone.setTooltip (u ("Tracks with MixPilot Track on them. Green dot = analysed and corrected. Right: the gain applied to the track."));
+    refInfoZone.setTooltip (u ("Reference info: integrated loudness (LUFS), peak (dBTP), loudness range (LRA) and duration."));
+    corrZone.setTooltip (u ("Choose what the Assistant aims for (style or reference) and who corrects the mix (the tracks, the Master, or both)."));
 
     // --- En-tête -------------------------------------------------------------
     for (int i = 0; i < mp::NumGenres; ++i)  genreBox.addItem  (u (mp::genreProfile (i).name), i + 1);
@@ -154,12 +154,12 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     amountSlider.setColour (Slider::backgroundColourId, col::border);
     amountSlider.setColour (Slider::thumbColourId, col::text);
     amountSlider.setColour (Slider::textBoxOutlineColourId, Colours::transparentBlack);
-    amountSlider.setTooltip (u ("Amount of correction from the Assistant: 0 % = none, 100 % = full. 70 to 85 % sounds natural."));
+    amountSlider.setTooltip (u ("How much the Assistant corrects: 0 % = none, 100 % = full. 70 to 85 % sounds natural."));
     addAndMakeVisible (amountSlider);
     sliderAtt.push_back (std::make_unique<SA> (vts, "amount", amountSlider));
 
     assistantBtn.setColour (TextButton::buttonColourId, col::accent);
-    assistantBtn.setTooltip (u ("Runs the full analysis (30 to 40 s) during the loudest section: the tracks correct themselves, then the Master sets the balance and loudness."));
+    assistantBtn.setTooltip (u ("Runs the full analysis (30 to 40 s) during the loudest part: the tracks correct themselves, then the Master sets the balance and loudness."));
     assistantBtn.onClick = [this]
     {
         const auto ph = proc.getPhase();
@@ -170,7 +170,7 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
 
     stylePower (compareBtn);
     compareBtn.setColour (TextButton::buttonOnColourId, col::warn);
-    compareBtn.setTooltip (u ("A/B: hear the original sound at the same loudness as the processed sound, to judge fairly."));
+    compareBtn.setTooltip (u ("A/B: hear the original sound at the same loudness as the processed sound, for a fair judgement."));
     compareBtn.onClick = [this] { proc.setCompare (compareBtn.getToggleState()); };
     addAndMakeVisible (compareBtn);
 
@@ -192,35 +192,35 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
 
     // --- Référence -----------------------------------------------------------
     loadRefBtn.setButtonText ("LOAD");
-    loadRefBtn.setTooltip (u ("Choose a reference song (WAV, AIFF, FLAC, MP3, M4A). You can also drop it on the waveform."));
+    loadRefBtn.setTooltip (u ("Pick a reference song (WAV, AIFF, FLAC, MP3, M4A). You can also drop it on the waveform."));
     loadRefBtn.onClick = [this] { chooseReferenceFile(); };
     clearRefBtn.setTooltip (u ("Removes the reference."));
     clearRefBtn.onClick = [this] { proc.clearReference(); };
-    listenRefBtn.setButtonText (u ("PLAY REF."));
+    listenRefBtn.setButtonText (u ("LISTEN REF"));
     stylePower (listenRefBtn);
     listenRefBtn.setColour (TextButton::buttonOnColourId, col::purple.darker (0.3f));
-    listenRefBtn.setTooltip (u ("Replaces your output with the reference to compare. Click again to go back to your mix."));
+    listenRefBtn.setTooltip (u ("Replaces your output with the reference for comparison. Click again to return to your mix."));
     listenRefBtn.onClick = [this] { proc.setReferenceListening (listenRefBtn.getToggleState()); };
-    matchRefBtn.setButtonText (u ("EQUAL VOL."));
+    matchRefBtn.setButtonText (u ("MATCH"));
     stylePower (matchRefBtn);
     matchRefBtn.setColour (TextButton::buttonOnColourId, col::purple.darker (0.3f));
     matchRefBtn.setToggleState (proc.isReferenceMatched(), dontSendNotification);
-    matchRefBtn.setTooltip (u ("Plays the reference at the same loudness as your mix: you compare sound, not volume."));
+    matchRefBtn.setTooltip (u ("Plays the reference at the same loudness as your mix: you compare the sound, not the volume."));
     matchRefBtn.onClick = [this] { proc.setReferenceMatch (matchRefBtn.getToggleState()); };
-    waveform.setTooltip (u ("Reference waveform. Click to jump. Drop a file here to load another one."));
+    waveform.setTooltip (u ("Reference waveform. Click to jump to a position. Drop a file here to load another one."));
     for (auto* c : std::initializer_list<Component*> { &loadRefBtn, &clearRefBtn, &listenRefBtn, &matchRefBtn, &waveform }) addAndMakeVisible (c);
 
     // --- Cible et répartition -------------------------------------------------
     targetBox.addItem ("Style", 1);
-    targetBox.addItem (u ("Reference"), 2);
-    targetBox.setTooltip (u ("What the Assistant targets: the typical balance of the STYLE, or that of your REFERENCE (spectrum and width)."));
+    targetBox.addItem ("Reference", 2);
+    targetBox.setTooltip (u ("What the Assistant aims for: the typical balance of the STYLE, or that of your REFERENCE (spectrum and width)."));
     addAndMakeVisible (targetBox);
     targetAtt = std::make_unique<CA> (vts, "target", targetBox);
 
-    refLevelBtn.setButtonText (u ("REF. VOL."));
+    refLevelBtn.setButtonText (u ("REF LVL"));
     stylePower (refLevelBtn);
     refLevelBtn.setColour (TextButton::buttonOnColourId, col::purple.darker (0.3f));
-    refLevelBtn.setTooltip (u ("Also targets the reference's loudness (instead of the output's). Peaks stay below the output ceiling."));
+    refLevelBtn.setTooltip (u ("Also aims for the reference's loudness (instead of the output's). Peaks stay under the output ceiling."));
     addAndMakeVisible (refLevelBtn);
     buttonAtt.push_back (std::make_unique<BA> (vts, "refLevel", refLevelBtn));
 
@@ -230,7 +230,7 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     shareSlider.setColour (Slider::backgroundColourId, col::accent.withAlpha (0.6f));
     shareSlider.setColour (Slider::thumbColourId, col::text);
     shareSlider.setPopupDisplayEnabled (true, true, this);
-    shareSlider.setTooltip (u ("SPLIT: who corrects the mix balance. Left: the responsible tracks correct themselves (more natural). Right: the Master's EQ corrects everything at once. Middle: half and half."));
+    shareSlider.setTooltip (u ("SPLIT: who corrects the mix balance. Left: the responsible tracks correct themselves (more natural). Right: the Master EQ corrects everything at once. Middle: half and half."));
     addAndMakeVisible (shareSlider);
     sliderAtt.push_back (std::make_unique<SA> (vts, "masterShare", shareSlider));
     shareSlider.setDoubleClickReturnValue (true, 0.5);
@@ -241,7 +241,7 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
         { &eqOn,    "eqOn",    "Turns the Master EQ on/off. The sliders are set by the Assistant and stay editable." },
         { &dynOn,   "dynOn",   "Turns multiband compression (Glue) and saturation (Warmth) on/off." },
         { &imageOn, "imageOn", "Turns stereo processing (Width and Mono bass) on/off." },
-        { &maxOn,   "maxOn",   "Turns the maximizer (Push + true-peak limiter) on/off. When off, loudness is no longer matched to the output." } };
+        { &maxOn,   "maxOn",   "Turns the maximizer (Push + true peak limiter) on/off. When off, loudness is no longer matched to the output." } };
     for (auto& pw : powers)
     {
         stylePower (*pw.b);
@@ -258,20 +258,20 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
         s.setColour (Slider::trackColourId, i == mp::kBands ? col::warn : col::accent2);
         s.setPopupDisplayEnabled (true, true, this);
         s.setTooltip (i == mp::kBands ? u ("AIR: softens the extreme highs (above 12 kHz). Useful for vinyl or a harsh mix.")
-                                      : u ("Band ") + eqLabels[i] + u (" Hz. Raise (+) or lower (−) this frequency range on the whole mix. Double-click: 0 dB."));
+                                      : u ("Band ") + eqLabels[i] + u (" Hz. Boost (+) or cut (−) this frequency range on the whole mix. Double-click: 0 dB."));
         addAndMakeVisible (s);
         sliderAtt.push_back (std::make_unique<SA> (vts, i < mp::kBands ? "eq" + String (i) : String ("highTame"), s));
         s.setDoubleClickReturnValue (true, 0.0);
     }
 
-    addKnob (glue,     "glue",     u ("GLUE: gentle 3-band compression that glues the mix. Higher = denser, but less punch."));
+    addKnob (glue,     "glue",     u ("GLUE: gentle 3-band compression that holds the mix together. Higher = denser, but less punch."));
     addKnob (warmth,   "warmth",   u ("WARMTH: light saturation that adds density and roundness. Too high and the sound can get dull."), col::warn);
     addKnob (width,    "width",    u ("WIDTH: widens (> 100 %) or narrows (< 100 %) the stereo image. The low end stays stable."), col::accent2);
     addKnob (monoBass, "monoBass", u ("MONO BASS: makes everything below this frequency mono. Recommended for club (120 Hz) and vinyl (150 Hz)."), col::accent2);
     addKnob (push,     "push",     u ("PUSH: gain sent into the limiter. This is what raises the final loudness (set automatically by the Assistant)."));
-    addKnob (clipKnob, "clip",     u ("CLIP: rounds off very short peaks (kick and snare attacks) before the limiter. More loudness without pumping; too high and the sound can get harsh. Electronic: 60 to 80 %."), col::warn);
+    addKnob (clipKnob, "clip",     u ("CLIP: rounds off very short peaks (kick and snare attacks) before the limiter. More loudness without pumping; too high and the sound can get harsh. Electro: 60 to 80 %."), col::warn);
     addKnob (ceiling,  "ceiling",  u ("CEILING: maximum peak (true peak). -1 dBTP for streaming, -0.3 dBTP for club/CD."), col::bad);
-    addKnob (release,  "release",  u ("RELEASE: limiter recovery speed. Short = louder but more aggressive; long = smoother."));
+    addKnob (release,  "release",  u ("RELEASE: how fast the limiter recovers. Short = louder but more aggressive; long = smoother."));
 
     // --- Spectre -------------------------------------------------------------
     spectrum.fftSize = mp::SpectrumAnalyzer::fftSize;
@@ -286,7 +286,7 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
 
     reviewBtn.setButtonText (u ("MIX REVIEW"));
     reviewBtn.setColour (TextButton::buttonColourId, col::accent.withAlpha (0.35f));
-    reviewBtn.setTooltip (u ("Full mix report: each track (level, clipping, detection), track conflicts, and the overall mix (loudness, peaks, balance, stereo, compression), with a score and what to do."));
+    reviewBtn.setTooltip (u ("Full mix report: every track (level, clipping, detection), conflicts between tracks, and the overall mix (loudness, peaks, balance, stereo, compression), with a score and what to do."));
     reviewBtn.onClick = [this] { review->setReview (proc.buildReview()); review->setVisible (true); review->toFront (true); };
     addAndMakeVisible (reviewBtn);
     review = std::make_unique<ReviewOverlay>();
@@ -395,7 +395,7 @@ void MasterEditor::paint (Graphics& g)
     g.setFont (font (10.0f, true)); g.setColour (col::textDim);
     g.drawText ("STYLE",   genreBox.getX(),     4, 100, 12, Justification::left);
     g.drawText ("OUTPUT",  outputBox.getX(),    4, 100, 12, Justification::left);
-    g.drawText (u ("INTENSITY"), amountSlider.getX(), 4, 100, 12, Justification::left);
+    g.drawText ("AMOUNT", amountSlider.getX(), 4, 100, 12, Justification::left);
 
     // Barre d'état
     {
@@ -436,7 +436,7 @@ void MasterEditor::paint (Graphics& g)
     drawKnobTitle (g, push, "PUSH");
     drawKnobTitle (g, clipKnob, "CLIP");
     drawKnobTitle (g, ceiling, "CEILING");
-    drawKnobTitle (g, release, u ("RELEASE"));
+    drawKnobTitle (g, release, "RELEASE");
 
     auto grBar = [&] (Rectangle<int> area, float gr, const String& label)
     {
@@ -469,7 +469,7 @@ void MasterEditor::drawReferencePanel (Graphics& g, Rectangle<int> area)
     drawPanel (g, area);
     auto r = area.reduced (12, 8);
     auto info = r.removeFromLeft (190);
-    drawSectionTitle (g, info.removeFromTop (16), u ("REFERENCE"));
+    drawSectionTitle (g, info.removeFromTop (16), "REFERENCE");
 
     auto ref = proc.getReference();
     g.setFont (font (12.5f, true));
@@ -497,7 +497,7 @@ void MasterEditor::drawCorrectionPanel (Graphics& g, Rectangle<int> area)
     auto r = area.reduced (12, 8);
     auto row1 = r.removeFromTop (24);
     g.setColour (col::textDim); g.setFont (font (10.5f, true));
-    g.drawText ("TARGET", row1.removeFromLeft (44), Justification::centredLeft);
+    g.drawText ("TARGET", row1.removeFromLeft (50), Justification::centredLeft);
 
     r.removeFromTop (6);
     auto lab = r.removeFromTop (14);
@@ -544,9 +544,9 @@ void MasterEditor::drawLoudnessPanel (Graphics& g, Rectangle<int> area)
     row ("Short term (3 s)", shortTerm > -69 ? String (shortTerm, 1) + " LUFS" : String ("--"), col::text);
     row ("True peak (max)",   tpHold > -99 ? String (tpHold, 1) + " dBTP" : String ("--"), okTP ? col::text : col::bad);
     if (auto ref = proc.getReference())
-        row (u ("Reference"), String (ref->lufs, 1) + " LUFS", col::purple);
+        row ("Reference", String (ref->lufs, 1) + " LUFS", col::purple);
     else
-        row (u ("Glue reduction"), String (glueGr, 1) + " dB", col::text);
+        row ("Glue reduction", String (glueGr, 1) + " dB", col::text);
 
     r.removeFromTop (8);
     auto bar = r.removeFromTop (14).toFloat();
@@ -569,7 +569,7 @@ void MasterEditor::drawLoudnessPanel (Graphics& g, Rectangle<int> area)
         g.setFont (font (12.0f)); g.setColour (ok ? col::text : col::textDim);
         g.drawText (t, line.withTrimmedLeft (16), Justification::centredLeft);
     };
-    chk (okL,  "Loudness OK (" + String (target, 1) + " LUFS)");
+    chk (okL,  "Loudness on target (" + String (target, 1) + " LUFS)");
     chk (okTP && tpHold > -99, u ("No clipping (≤ ") + String (op.ceilingDb, 1) + " dBTP)");
 }
 
@@ -584,7 +584,7 @@ void MasterEditor::drawTrackPanel (Graphics& g, Rectangle<int> area)
     if (tracks.empty())
     {
         g.setColour (col::textDim); g.setFont (font (12.0f));
-        g.drawFittedText (u ("No tracks.\nAdd MixPilot Track to each track (after the instrument or effects): they will appear here."),
+        g.drawFittedText (u ("No tracks.\nAdd MixPilot Track on every track (after the instrument or effects): they will show up here."),
                           r.removeFromTop (80), Justification::topLeft, 5);
         return;
     }
@@ -651,7 +651,7 @@ void MasterEditor::resized()
     {
         auto r = corrArea.reduced (12, 8);
         auto row1 = r.removeFromTop (24);
-        row1.removeFromLeft (44);
+        row1.removeFromLeft (50);
         refLevelBtn.setBounds (row1.removeFromRight (72));
         row1.removeFromRight (6);
         targetBox.setBounds (row1);
@@ -690,5 +690,5 @@ void MasterEditor::resized()
 
     help->setBounds (getLocalBounds());
     review->setBounds (getLocalBounds());
-    reviewBtn.setBounds (tracksArea.getRight() - 140, tracksArea.getY() + 8, 128, 22);
+    reviewBtn.setBounds (tracksArea.getRight() - 122, tracksArea.getY() + 8, 110, 22);
 }

@@ -20,7 +20,7 @@ namespace
 
     const char* bandWord (int b)
     {
-        static const char* w[] = { "sub-bass (30 Hz)", "bass (60 Hz)", "upper bass (125 Hz)", "low mids (250 Hz)",
+        static const char* w[] = { "sub (30 Hz)", "bass (60 Hz)", "upper bass (125 Hz)", "low mids (250 Hz)",
                                    "warm mids (500 Hz)", "mids (1 kHz)", "upper mids (2 kHz)", "presence (4 kHz)",
                                    "brilliance (8 kHz)", "air (16 kHz)" };
         return w[jlimit (0, mp::kBands - 1, b)];
@@ -49,12 +49,12 @@ AudioProcessorValueTreeState::ParameterLayout MasterProcessor::createLayout()
 
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { "genre", 1 },  "Style",  genres,  mp::Pop));
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { "output", 1 }, "Output", outputs, mp::Streaming));
-    l.add (std::make_unique<AudioParameterFloat>  (ParameterID { "amount", 1 }, u ("Intensity"), NormalisableRange<float> (0, 1), 0.8f, pc));
+    l.add (std::make_unique<AudioParameterFloat>  (ParameterID { "amount", 1 }, "Amount", NormalisableRange<float> (0, 1), 0.8f, pc));
 
     for (int b = 0; b < mp::kBands; ++b)
         l.add (std::make_unique<AudioParameterFloat> (ParameterID { "eq" + String (b), 1 }, "EQ " + String (mp::kBandFreqs[(size_t) b], 0) + " Hz",
                                                       NormalisableRange<float> (-6, 6, 0.01f), 0.0f, dB));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "highTame", 1 }, u ("Extreme highs"), NormalisableRange<float> (-6, 0, 0.01f), 0.0f, dB));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "highTame", 1 }, "Extreme highs", NormalisableRange<float> (-6, 0, 0.01f), 0.0f, dB));
     l.add (std::make_unique<AudioParameterBool>  (ParameterID { "eqOn", 1 }, "EQ on", true));
 
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "glue", 1 }, "Glue", NormalisableRange<float> (0, 1), 0.4f, pc));
@@ -69,15 +69,15 @@ AudioProcessorValueTreeState::ParameterLayout MasterProcessor::createLayout()
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "push", 1 }, "Push", NormalisableRange<float> (0, 24, 0.01f), 0.0f, dB));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "clip", 1 }, "Clip", NormalisableRange<float> (0, 1), 0.4f, pc));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "ceiling", 1 }, "Ceiling", NormalisableRange<float> (-3, 0, 0.01f), -1.0f, dB));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "release", 1 }, u ("Release"), NormalisableRange<float> (10, 500, 1, 0.5f), 100.0f,
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "release", 1 }, "Release", NormalisableRange<float> (10, 500, 1, 0.5f), 100.0f,
                AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int) { return String (roundToInt (v)) + " ms"; })));
     l.add (std::make_unique<AudioParameterBool>  (ParameterID { "maxOn", 1 }, "Maximizer on", true));
     l.add (std::make_unique<AudioParameterBool>  (ParameterID { "bypass", 1 }, "Bypass", false));
 
     // Nouveautés : référence et répartition
-    l.add (std::make_unique<AudioParameterChoice> (ParameterID { "target", 1 }, "Target", StringArray { "Style", u ("Reference") }, 0));
-    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "refLevel", 1 }, u ("Match reference loudness"), false));
-    l.add (std::make_unique<AudioParameterFloat>  (ParameterID { "masterShare", 1 }, u ("Split (Master share)"), NormalisableRange<float> (0, 1), 0.5f,
+    l.add (std::make_unique<AudioParameterChoice> (ParameterID { "target", 1 }, "Target", StringArray { "Style", "Reference" }, 0));
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "refLevel", 1 }, "Match reference loudness", false));
+    l.add (std::make_unique<AudioParameterFloat>  (ParameterID { "masterShare", 1 }, "Split (Master share)", NormalisableRange<float> (0, 1), 0.5f,
                AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int)
                { return "Tracks " + String (roundToInt ((1 - v) * 100)) + " % / Master " + String (roundToInt (v * 100)) + " %"; })));
     return l;
@@ -499,8 +499,8 @@ String MasterProcessor::getStatusText() const
 {
     switch (phase)
     {
-        case Phase::Idle:       return u ("Run the Assistant during the loudest section of the song");
-        case Phase::WaitTracks: return u ("1/3 · Tracks are analyzing and correcting themselves…");
+        case Phase::Idle:       return u ("Run the Assistant during the loudest part of the song");
+        case Phase::WaitTracks: return u ("1/3 · Tracks are analysing and correcting themselves…");
         case Phase::Listening:  return u ("2/3 · Listening to the full mix…");
         case Phase::Verifying:  return u ("2/3 · Checking after track corrections…");
         case Phase::Settling:   return u ("3/3 · Setting the final loudness…");
@@ -619,27 +619,27 @@ StringArray MasterProcessor::getTips() const
     if (tracks.empty())
         tips.add (u ("Add MixPilot Track at the end of every track: the Master can then correct the tracks directly (see SPLIT)."));
     if (! lastLearn.valid && phase == Phase::Idle)
-        tips.add (u ("Run the ASSISTANT during the loudest section of the song to get a complete first setting."));
+        tips.add (u ("Run the ASSISTANT during the loudest part of the song to get a complete first setting."));
     if (phase == Phase::NoSignal)
-        tips.add (u ("No sound was heard: start playback in your DAW, then run the ASSISTANT again."));
+        tips.add (u ("No sound was heard: start playback in Ableton, then run the ASSISTANT again."));
 
     if (lastLearn.valid)
     {
         if (push > 12.0f)
-            tips.add (u ("The Master has to push by +") + String (push, 1) + u (" dB: your mix is coming in very quiet. Turn the tracks up (or let MixPilot Track do it) to squash the sound less."));
+            tips.add (u ("The Master has to push by +") + String (push, 1) + u (" dB: your mix arrives very quiet. Raise the tracks (or let MixPilot Track do it) to squash the sound less."));
         if (limGrAvg > 6.0f)
             tips.add (u ("The maximizer is reducing by about ") + String (limGrAvg, 1) + u (" dB: the sound may get squashed. Pick a quieter output or lower PUSH."));
         if (glueGrDb.load() > 5.0f)
             tips.add (u ("GLUE is compressing hard: lower it if the mix loses punch."));
         if (phase == Phase::Done && integ > -60.0f && std::abs (integ - targetLufs) > 1.0f)
-            tips.add (u ("Loudness is ") + String (integ - targetLufs, 1) + u (" LU from the target: run the ASSISTANT again on the loudest section, or adjust PUSH."));
+            tips.add (u ("Loudness is ") + String (integ - targetLufs, 1) + u (" LU from the target: run the ASSISTANT again on the loudest part, or adjust PUSH."));
 
         // déséquilibre spectral restant
         int worst = -1; float w = 0;
         for (int b = 0; b < mp::kBands; ++b)
             if (std::abs (lastCorrection.mixDiff[(size_t) b]) > std::abs (w)) { w = lastCorrection.mixDiff[(size_t) b]; worst = b; }
         if (worst >= 0 && std::abs (w) > 2.5f)
-            tips.add (u ("Compared with the target, your mix ") + (w > 0 ? u ("lacks ") : u ("has too much ")) + u (bandWord (worst))
+            tips.add (u ("Compared with the target, your mix has ") + (w > 0 ? u ("too little ") : u ("too much ")) + u (bandWord (worst))
                       + u (": the correction is shared according to the SPLIT slider."));
     }
 
@@ -648,11 +648,11 @@ StringArray MasterProcessor::getTips() const
 
     if (lastLearn.valid && mp::outputIsNormalised ((int) param ("output")))
         tips.add (u ("Output ") + u (op.name) + u (": the song is set to ") + String (targetLufs, 0)
-                  + u (" LUFS because the platform turns louder songs down. For a louder sound in your DAW, pick SoundCloud, Club or CD."));
+                  + u (" LUFS because the platform turns louder songs down. For a louder sound in Ableton, pick SoundCloud, Club or CD."));
     if (lastLearn.valid && phase == Phase::Done && getLimiterGr() < 0.5f && limGrAvg < 0.5f && ! mp::outputIsNormalised ((int) param ("output")))
-        tips.add (u ("The maximizer is barely working: you can raise PUSH or CLIP for more loudness, or run the ASSISTANT again."));
+        tips.add (u ("The maximizer is barely working: raise PUSH or CLIP for more loudness, or run the ASSISTANT again."));
     if ((int) param ("output") == mp::Club && param ("monoBass") < 1.0f)
-        tips.add (u ("For club play, turn on MONO BASS (around 120 Hz): the low end will be solid on the sound system."));
+        tips.add (u ("For club play, turn on MONO BASS (around 120 Hz): the low end will stay solid on the PA."));
 
     // kick / basse
     bool kick = false, bassNoDuck = false;
@@ -662,24 +662,24 @@ StringArray MasterProcessor::getTips() const
         if (t.instrument == mp::Bass && t.hasProfile && t.duckDb < 0.1f) bassNoDuck = true;
     }
     if (kick && bassNoDuck)
-        tips.add (u ("The kick and bass are fighting over the low end: turn on SPACE on the bass track (MixPilot Track)."));
+        tips.add (u ("Kick and bass are fighting over the low end: turn on SPACE on the bass track (MixPilot Track)."));
 
     if (refShared != nullptr)
     {
         if ((int) param ("target") == 0)
-            tips.add (u ("A reference is loaded: set TARGET = Reference so the Assistant uses it."));
+            tips.add (u ("A reference is loaded: set TARGET = Reference so the Assistant follows it."));
         else if (param ("refLevel") < 0.5f && refShared->lufs > targetLufs + 3.0f)
-            tips.add (u ("Your reference is at ") + String (refShared->lufs, 1) + u (" LUFS, your output targets ") + String (targetLufs, 0)
-                      + u (" LUFS: that's normal, platforms turn loud songs down. Compare with PLAY REF. (equal loudness)."));
+            tips.add (u ("Your reference is at ") + String (refShared->lufs, 1) + u (" LUFS, your output aims for ") + String (targetLufs, 0)
+                      + u (" LUFS: that's normal, platforms turn loud songs down. Compare with LISTEN REF (level matched)."));
     }
     else if (lastLearn.valid)
-        tips.add (u ("Tip: drop a song you like into REFERENCE to target its balance and compare at equal loudness."));
+        tips.add (u ("Tip: drop a song you like into REFERENCE to aim for its balance and compare at equal loudness."));
 
     if (lastLearn.valid && ! tracks.empty() && param ("masterShare") > 0.95f)
-        tips.add (u ("SPLIT is all the way right: the Master corrects alone. Slide toward TRACKS so the responsible tracks correct themselves (more natural sound)."));
+        tips.add (u ("SPLIT is fully right: the Master corrects alone. Slide towards TRACKS so the tracks responsible correct themselves (more natural sound)."));
 
     if (tips.isEmpty())
-        tips.add (u ("All good. Compare with A/B (equal loudness) to judge the result without being fooled by volume."));
+        tips.add (u ("Everything looks good. Compare with A/B (level matched) to judge the result without being fooled by loudness."));
     return tips;
 }
 
@@ -699,7 +699,7 @@ mp::MixReview MasterProcessor::buildReview() const
 
     // ------------------------------------------------------------------ global
     if (! lastLearn.valid)
-        rv.add (G, mp::SevWarn, "Assistant", u ("Not run yet: run the ASSISTANT on the loudest section to set up tracks and master."));
+        rv.add (G, mp::SevWarn, "Assistant", u ("Not run yet: run the ASSISTANT on the loudest part to set up tracks and master."));
     else
         rv.add (G, mp::SevOk, "Assistant", u ("Set up for ") + u (mp::genreProfile ((int) param ("genre")).name) + " / " + u (op.name) + ".");
 
@@ -707,16 +707,16 @@ mp::MixReview MasterProcessor::buildReview() const
     {
         const float d = integ - targetLufs;
         if (std::abs (d) <= 1.0f) rv.add (G, mp::SevOk, "Final loudness", String (integ, 1) + u (" LUFS, on target (") + String (targetLufs, 1) + ").");
-        else rv.add (G, mp::SevWarn, "Final loudness", String (integ, 1) + u (" LUFS, which is ") + sgn (d) + u (" LU from the target. Run the ASSISTANT again on the loudest section, or adjust PUSH."));
+        else rv.add (G, mp::SevWarn, "Final loudness", String (integ, 1) + u (" LUFS, ") + sgn (d) + u (" LU from the target. Run the ASSISTANT again on the loudest part, or adjust PUSH."));
     }
-    else rv.add (G, mp::SevInfo, "Final loudness", u ("Play a few seconds to measure (RESET button to start from zero)."));
+    else rv.add (G, mp::SevInfo, "Final loudness", u ("Play a few seconds to measure (RESET button to start over)."));
 
     {
         const float tp = truePeakHoldForReview;
         if (tp > -99.0f)
         {
             if (tp > op.ceilingDb + 0.05f) rv.add (G, mp::SevProblem, u ("Peaks"), u ("True peak ") + String (tp, 1) + u (" dBTP above the ceiling (") + String (op.ceilingDb, 1) + u ("): check that MAXIMIZER is on and lower PUSH."));
-            else rv.add (G, mp::SevOk, u ("Peaks"), u ("True peak max ") + String (tp, 1) + u (" dBTP, below the ceiling."));
+            else rv.add (G, mp::SevOk, u ("Peaks"), u ("Max true peak ") + String (tp, 1) + u (" dBTP, under the ceiling."));
         }
     }
 
@@ -731,11 +731,11 @@ mp::MixReview MasterProcessor::buildReview() const
             const auto a = mp::normalised (ob, w), t = mp::normalised (tgt, w);
             int worst = -1; float wv = 0;
             for (int b = 1; b < 9; ++b) if (std::abs (a[(size_t) b] - t[(size_t) b]) > std::abs (wv)) { wv = a[(size_t) b] - t[(size_t) b]; worst = b; }
-            static const char* zone[] = { "sub-bass", "bass", "upper bass", "low mids", "warm mids", "mids", "upper mids", "presence", "brilliance", "air" };
+            static const char* zone[] = { "sub", "bass", "upper bass", "low mids", "warm mids", "mids", "upper mids", "presence", "brilliance", "air" };
             if (worst >= 0 && std::abs (wv) > 3.0f)
-                rv.add (G, mp::SevWarn, u ("Balance"), u ("Too ") + (wv > 0 ? u ("much ") : u ("little ")) + u (zone[worst]) + u (" (") + freqTxt (mp::kBandFreqs[(size_t) worst]) + ", " + sgn (wv)
+                rv.add (G, mp::SevWarn, u ("Balance"), (wv > 0 ? u ("Too much ") : u ("Too little ")) + u (zone[worst]) + u (" (") + freqTxt (mp::kBandFreqs[(size_t) worst]) + ", " + sgn (wv)
                         + u (" dB vs target). Run the ASSISTANT again; if it persists, check below which track dominates this range."));
-            else rv.add (G, mp::SevOk, u ("Balance"), u ("Close to the target ") + (referenceIsTarget() ? u ("(reference)") : u ("(style)")) + u (": no range off by more than 3 dB."));
+            else rv.add (G, mp::SevOk, u ("Balance"), u ("Close to the ") + (referenceIsTarget() ? u ("reference") : u ("style")) + u (" target: no range off by more than 3 dB."));
         }
     }
 
@@ -752,11 +752,11 @@ mp::MixReview MasterProcessor::buildReview() const
             else rv.add (G, mp::SevOk, u ("Stereo"), u ("Healthy width, correlation ") + String (corr, 2) + ".");
         }
         if ((int) param ("output") == mp::Club && param ("monoBass") < 1.0f)
-            rv.add (G, mp::SevWarn, u ("Club low end"), u ("MONO BASS is off: turn it on (120 Hz) for a solid low end on sound systems."));
+            rv.add (G, mp::SevWarn, u ("Club low end"), u ("MONO BASS is off: turn it on (120 Hz) for a solid low end on the PA."));
     }
 
     // dynamique
-    if (limGrAvg > 6.0f) rv.add (G, mp::SevWarn, "Compression", u ("The maximizer reduces by an average of ") + String (limGrAvg, 1) + u (" dB: the sound may get squashed. Lower PUSH, raise CLIP, or pick a quieter output."));
+    if (limGrAvg > 6.0f) rv.add (G, mp::SevWarn, "Compression", u ("The maximizer reduces by ") + String (limGrAvg, 1) + u (" dB on average: the sound may get squashed. Lower PUSH, raise CLIP, or pick a quieter output."));
     else if (glueGrDb.load() > 5.0f) rv.add (G, mp::SevWarn, "Compression", u ("GLUE is compressing hard: lower it if the mix lacks punch."));
     else if (lastLearn.valid) rv.add (G, mp::SevOk, "Compression", u ("Dynamics under control (maximizer ") + String (limGrAvg, 1) + u (" dB on average)."));
     if (inPeakHold > 0.5f) rv.add (G, mp::SevWarn, "Headroom", u ("The mix hits the Master above 0 dBFS: lower the Master fader or the tracks by a few dB."));
@@ -776,25 +776,25 @@ mp::MixReview MasterProcessor::buildReview() const
 
         const String title = t.name + " (" + (t.prof ? u (mp::instrumentProfile (t.inst).name) : String ("?")) + ")";
         if (s.bypassed.load()) { rv.add (T, mp::SevInfo, title, u ("BYPASS on: this track is not being corrected.")); continue; }
-        if (! t.prof) { rv.add (T, mp::SevWarn, title, u ("Not analyzed yet: run the ASSISTANT or click LISTEN on the track while it plays.")); continue; }
+        if (! t.prof) { rv.add (T, mp::SevWarn, title, u ("Not analysed yet: run the ASSISTANT or click LISTEN on the track while it plays.")); continue; }
 
         StringArray notes; int sev = mp::SevOk;
         const float inPk = s.inputPeakDb.load();
-        if (inPk > 0.5f) { sev = mp::SevProblem; notes.add (u ("input is clipping (") + String (inPk, 1) + u (" dBFS): lower the instrument or the effect before MixPilot")); }
-        if (! s.manual.load() && s.confidence.load() < 0.6f) { sev = std::max (sev, (int) mp::SevWarn); notes.add (u ("uncertain detection: check the INSTRUMENT")); }
+        if (inPk > 0.5f) { sev = mp::SevProblem; notes.add (u ("input is clipping (") + String (inPk, 1) + u (" dBFS): lower the instrument or effect before MixPilot")); }
+        if (! s.manual.load() && s.confidence.load() < 0.6f) { sev = std::max (sev, (int) mp::SevWarn); notes.add (u ("uncertain detection: check INSTRUMENT")); }
         const float trim = s.trimDb.load();
         const float level = s.outIntegrated.load(), tgt = s.targetLufs.load();
         if (level > -60.0f && std::abs (level - tgt) > 2.0f)
-        { sev = std::max (sev, (int) mp::SevWarn); notes.add (u ("level ") + sgn (level - tgt) + u (" dB from its place in the mix (GAIN off, limit reached or track changed since the analysis: listen again)")); }
-        if (trim > 12.0f) { sev = std::max (sev, (int) mp::SevInfo); notes.add (u ("very quiet source (+") + String (trim, 1) + u (" dB): turn it up in the instrument")); }
-        if (trim < -12.0f) { sev = std::max (sev, (int) mp::SevInfo); notes.add (u ("very loud source (") + String (trim, 1) + u (" dB): turn it down in the instrument")); }
-        if (s.gainReductionDb.load() > 8.0f) { sev = std::max (sev, (int) mp::SevWarn); notes.add (u ("heavy compression: lower the track's INTENSITY")); }
+        { sev = std::max (sev, (int) mp::SevWarn); notes.add (u ("level ") + sgn (level - tgt) + u (" dB from its place in the mix (GAIN off, limit reached or track changed since analysis: listen again)")); }
+        if (trim > 12.0f) { sev = std::max (sev, (int) mp::SevInfo); notes.add (u ("very quiet source (+") + String (trim, 1) + u (" dB): raise it in the instrument")); }
+        if (trim < -12.0f) { sev = std::max (sev, (int) mp::SevInfo); notes.add (u ("very loud source (") + String (trim, 1) + u (" dB): lower it in the instrument")); }
+        if (s.gainReductionDb.load() > 8.0f) { sev = std::max (sev, (int) mp::SevWarn); notes.add (u ("heavy compression: lower the track's AMOUNT")); }
         if (! s.following.load()) notes.add (u ("FOLLOW MASTER off"));
-        if (t.mask < -1.0f && t.maskBand >= 0) notes.add (u ("leaves ") + String (-t.mask, 1) + u (" dB of room around ") + freqTxt (mp::kBandFreqs[(size_t) t.maskBand]));
+        if (t.mask < -1.0f && t.maskBand >= 0) notes.add (u ("makes ") + String (-t.mask, 1) + u (" dB of room around ") + freqTxt (mp::kBandFreqs[(size_t) t.maskBand]));
         if (t.inst == mp::Bass && t.duck > 0.05f) notes.add (u ("ducks under the kick (") + String (t.duck, 1) + " dB)");
         if (t.inst == mp::Instrumental && t.vduck > 0.05f) notes.add (u ("dips under the vocal (") + String (t.vduck, 1) + " dB)");
         if (std::abs (s.mixShareDb.load()) > 0.3f) notes.add (u ("applies ") + sgn (s.mixShareDb.load()) + u (" dB requested by the Master"));
-        rv.add (T, sev, title, u ("Gain ") + sgn (trim) + u (" dB") + (notes.isEmpty() ? u (". Nothing to report.") : " ; " + notes.joinIntoString (" ; ") + "."));
+        rv.add (T, sev, title, u ("Gain ") + sgn (trim) + u (" dB") + (notes.isEmpty() ? u (". Nothing to report.") : "; " + notes.joinIntoString ("; ") + "."));
     }
     if (tl.empty())
         rv.add (T, mp::SevInfo, u ("No linked tracks"), u ("Add MixPilot Track at the end of every track for a track-by-track review."));
@@ -830,16 +830,16 @@ mp::MixReview MasterProcessor::buildReview() const
             const auto& low  = mp::instrumentProfile (A.inst).priority < mp::instrumentProfile (B.inst).priority ? A : B;
             if (kb)
                 rv.add (C, bass.duck > 0.05f ? mp::SevOk : mp::SevWarn, pair, u ("Fighting over the low end") + where
-                        + (bass.duck > 0.05f ? u (": fixed, the bass ducks under the kick.") : u (": turn on SPACE on the bass track.")));
+                        + (bass.duck > 0.05f ? u (": handled, the bass ducks under the kick.") : u (": turn on SPACE on the bass track.")));
             else if (iv)
                 rv.add (C, inst.vduck > 0.05f ? mp::SevOk : mp::SevWarn, pair, u ("Vocal and instrumental overlap") + where
-                        + (inst.vduck > 0.05f ? u (": fixed, the instrumental dips while the vocal sings.") : u (": turn on SPACE on the full instrumental.")));
+                        + (inst.vduck > 0.05f ? u (": handled, the instrumental dips when the vocal sings.") : u (": turn on SPACE on the full instrumental.")));
             else
                 rv.add (C, low.mask < -0.9f ? mp::SevOk : mp::SevInfo, pair, u ("Same frequency range") + where
-                        + (low.mask < -0.9f ? u (": fixed, ") + low.name + u (" makes room.") : u (": if it sounds muddy, lower one of them slightly or change octave.")));
+                        + (low.mask < -0.9f ? u (": handled, ") + low.name + u (" makes room.") : u (": if it sounds muddy, lower one of them a bit or change octave.")));
             ++nConf;
         }
-    if (nConf == 0 && tl.size() > 1) rv.add (C, mp::SevOk, u ("No conflicts"), u ("Linked tracks sit in different ranges."));
+    if (nConf == 0 && tl.size() > 1) rv.add (C, mp::SevOk, u ("No conflicts"), u ("Linked tracks occupy different ranges."));
 
     // mashup : la voix passe-t-elle au-dessus de l'instru ?
     for (auto& v : tl)
@@ -849,10 +849,10 @@ mp::MixReview MasterProcessor::buildReview() const
                 const float vp = 0.5f * (v.ob[6] + v.ob[7]), ip = 0.5f * (in.ob[6] + in.ob[7]) - in.vduck;
                 const float margin = vp - ip;
                 if (margin < 0.0f)
-                    rv.add (C, mp::SevWarn, v.name + u (" over ") + in.name, u ("The vocal may be buried in the 2 – 4 kHz range (") + sgn (margin)
-                            + u (" dB): raise the acapella by ") + String (std::ceil (-margin) + 1, 0) + u (" dB or increase the instrumental's INTENSITY."));
+                    rv.add (C, mp::SevWarn, v.name + u (" over ") + in.name, u ("The vocal may get buried in the 2 – 4 kHz range (") + sgn (margin)
+                            + u (" dB): raise the a cappella by ") + String (std::ceil (-margin) + 1, 0) + u (" dB or raise the instrumental's AMOUNT."));
                 else if (margin > 12.0f)
-                    rv.add (C, mp::SevInfo, v.name + u (" over ") + in.name, u ("The vocal clearly dominates (") + sgn (margin) + u (" dB in the presence range): you can lower it a little to blend it better."));
+                    rv.add (C, mp::SevInfo, v.name + u (" over ") + in.name, u ("The vocal clearly dominates (") + sgn (margin) + u (" dB in the presence range): you can lower it a bit to blend it better."));
                 else
                     rv.add (C, mp::SevOk, v.name + u (" over ") + in.name, u ("The vocal sits well above the instrumental (") + sgn (margin) + u (" dB in the presence range)."));
             }
@@ -862,7 +862,7 @@ mp::MixReview MasterProcessor::buildReview() const
     rv.verdict = rv.score >= 90 ? u ("Mix ready: nothing blocking.")
                : rv.score >= 70 ? u ("Good mix: a few points to check.")
                : rv.score >= 50 ? u ("Needs work: several points to fix.")
-                                : u ("Major problems: fix the red points first.");
+                                : u ("Major problems: fix the red items first.");
     return rv;
 }
 

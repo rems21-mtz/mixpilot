@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
 
-project(MixPilot VERSION 1.0.1)
+project(MixPilot VERSION 1.0.2)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,6 +22,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JUCE)
 
+# Formats : AU uniquement sur Mac. Sous Windows, la copie automatique dans
+# "C:/Program Files/Common Files/VST3" demande les droits administrateur : on la désactive.
+if(APPLE)
+    set(MIXPILOT_FORMATS VST3 AU)
+    set(MIXPILOT_COPY TRUE)
+else()
+    set(MIXPILOT_FORMATS VST3)
+    set(MIXPILOT_COPY FALSE)
+endif()
+
 set(MIXPILOT_SHARED_SOURCES
     Source/Shared/SharedBus.cpp
 )
@@ -32,6 +42,10 @@ function(mixpilot_configure target)
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
         JUCE_DISPLAY_SPLASH_SCREEN=0)
+    if(MSVC)
+        # les sources sont en UTF-8 (textes français accentués)
+        target_compile_options(${target} PRIVATE /utf-8)
+    endif()
     target_link_libraries(${target}
         PRIVATE
             juce::juce_audio_utils
@@ -49,13 +63,13 @@ juce_add_plugin(MixPilotMaster
     BUNDLE_ID                   com.rems.mixpilot.master
     PLUGIN_MANUFACTURER_CODE    Rems
     PLUGIN_CODE                 Mpms
-    FORMATS                     VST3 AU
+    FORMATS                     ${MIXPILOT_FORMATS}
     PRODUCT_NAME                "MixPilot Master"
     IS_SYNTH                    FALSE
     NEEDS_MIDI_INPUT            FALSE
     NEEDS_MIDI_OUTPUT           FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD     TRUE
+    COPY_PLUGIN_AFTER_BUILD     ${MIXPILOT_COPY}
     VST3_CATEGORIES             Fx Mastering
     AU_MAIN_TYPE                kAudioUnitType_Effect)
 
@@ -74,13 +88,13 @@ juce_add_plugin(MixPilotTrack
     BUNDLE_ID                   com.rems.mixpilot.track
     PLUGIN_MANUFACTURER_CODE    Rems
     PLUGIN_CODE                 Mptr
-    FORMATS                     VST3 AU
+    FORMATS                     ${MIXPILOT_FORMATS}
     PRODUCT_NAME                "MixPilot Track"
     IS_SYNTH                    FALSE
     NEEDS_MIDI_INPUT            FALSE
     NEEDS_MIDI_OUTPUT           FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD     TRUE
+    COPY_PLUGIN_AFTER_BUILD     ${MIXPILOT_COPY}
     VST3_CATEGORIES             Fx Dynamics EQ
     AU_MAIN_TYPE                kAudioUnitType_Effect)
 

@@ -473,7 +473,7 @@ namespace mp::ui
     class TipsBar : public juce::Component, public juce::SettableTooltipClient
     {
     public:
-        TipsBar() { setTooltip (juce::String::fromUTF8 ("Automatic tips based on the situation. Click to see the next tip.")); }
+        TipsBar() { setTooltip (juce::String::fromUTF8 ("Automatic tips based on what is happening. Click to show the next tip.")); }
 
         void setTips (const juce::StringArray& t)
         {
@@ -631,7 +631,7 @@ namespace mp::ui
     {
         b.setButtonText ("?");
         b.setColour (juce::TextButton::buttonColourId, col::panelHi);
-        b.setTooltip (juce::String::fromUTF8 ("Opens the full plug-in guide (every section explained)."));
+        b.setTooltip (juce::String::fromUTF8 ("Opens the full plugin guide (every section explained)."));
     }
 }
 
