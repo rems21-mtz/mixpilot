@@ -9,16 +9,60 @@
  #include <fcntl.h>
  #include <unistd.h>
  #define MP_HAS_SHM 1
+#elif defined (_WIN32)
+ #ifndef NOMINMAX
+  #define NOMINMAX
+ #endif
+ #ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN
+ #endif
+ #include <windows.h>
+ #define MP_HAS_SHM 0
+ #define MP_HAS_WIN_SHM 1
 #else
  #define MP_HAS_SHM 0
+#endif
+
+#ifndef MP_HAS_WIN_SHM
+ #define MP_HAS_WIN_SHM 0
 #endif
 
 namespace mp
 {
     namespace
     {
+        // Une mémoire neuve est à zéro : les atomiques à 0 sont valides.
+        // On pose juste les valeurs par défaut la première fois.
+        BusMemory* initBus (void* mem)
+        {
+            auto* b = static_cast<BusMemory*> (mem);
+            uint32_t expected = 0;
+            if (b->magic.compare_exchange_strong (expected, kBusMagic))
+            {
+                b->genre.store (Pop);
+                b->output.store (Streaming);
+                b->amount.store (0.8f);
+                b->listenSeconds.store (8);
+                b->masterLufs.store (-70.0f);
+            }
+            return b;
+        }
+
         BusMemory* openBus()
         {
+           #if MP_HAS_WIN_SHM
+            // Windows : mappage nommé partagé par toutes les instances de la session
+            // (même hôte ou hôtes différents). La mémoire d'un nouveau mappage est à zéro.
+            // Le handle reste ouvert pour que le mappage vive aussi longtemps que le plugin.
+            HANDLE h = CreateFileMappingW (INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+                                           0, (DWORD) sizeof (BusMemory), L"Local\\mixpilot.bus.v3");
+            if (h != nullptr)
+            {
+                if (void* mem = MapViewOfFile (h, FILE_MAP_ALL_ACCESS, 0, 0, sizeof (BusMemory)))
+                    return initBus (mem);
+                CloseHandle (h);
+            }
+           #endif
            #if MP_HAS_SHM
             const char* shmName = "/mixpilot.bus.v3";
             const int fd = shm_open (shmName, O_CREAT | O_RDWR, 0666);
@@ -33,21 +77,7 @@ namespace mp
                 close (fd);
 
                 if (mem != MAP_FAILED)
-                {
-                    auto* b = static_cast<BusMemory*> (mem);
-                    // Une mémoire neuve est à zéro : les atomiques à 0 sont valides.
-                    // On pose juste les valeurs par défaut la première fois.
-                    uint32_t expected = 0;
-                    if (b->magic.compare_exchange_strong (expected, kBusMagic))
-                    {
-                        b->genre.store (Pop);
-                        b->output.store (Streaming);
-                        b->amount.store (0.8f);
-                        b->listenSeconds.store (8);
-                        b->masterLufs.store (-70.0f);
-                    }
-                    return b;
-                }
+                    return initBus (mem);
             }
            #endif
             // Repli : bus local au plugin (fonctionne si Master et Track sont dans le même binaire)
