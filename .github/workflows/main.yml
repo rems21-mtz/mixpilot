@@ -8,6 +8,8 @@ jobs:
   windows:
     name: Windows (VST3)
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -17,25 +19,55 @@ jobs:
           path: build/_deps
           key: juce-8.0.4-windows
 
-      - name: Configurer
-        run: cmake -B build -A x64
+      - name: Configure
+        run: cmake -B build -A x64 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
 
-      - name: Compiler
+      - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Rassembler les plugins
-        shell: pwsh
+      - name: Package
+        shell: bash
         run: |
-          New-Item -ItemType Directory -Force -Path out | Out-Null
-          Copy-Item -Recurse build/MixPilotMaster_artefacts/Release/VST3/*.vst3 out/
-          Copy-Item -Recurse build/MixPilotTrack_artefacts/Release/VST3/*.vst3 out/
-          Copy-Item README.md out/
-          Get-ChildItem out
+          set -e
+          V=$(grep -m1 '^project(MixPilot VERSION' CMakeLists.txt | sed -E 's/.*VERSION ([0-9.]+).*/\1/')
+          P=pkg/MixPilot
+          mkdir -p "$P/VST3"
+          cp -R build/MixPilotMaster_artefacts/Release/VST3/*.vst3 build/MixPilotTrack_artefacts/Release/VST3/*.vst3 "$P/VST3/"
+          printf '%s\r\n' \
+            "MixPilot v$V for Windows (64-bit, Windows 10/11)" \
+            "Free, pay what you want: https://buymeacoffee.com/remsplugins" \
+            "Download page: https://remsplugins.github.io/" \
+            "" \
+            "INSTALL" \
+            "1. Copy both .vst3 folders (inside VST3) to:" \
+            "   C:\\Program Files\\Common Files\\VST3" \
+            "2. Restart your DAW and rescan plug-ins." \
+            "   Ableton Live: Options > Preferences > Plug-Ins > Rescan." \
+            "" \
+            "Put MixPilot Track last on every track, MixPilot Master last on the" \
+            "Master, then press ASSISTANT while the loudest part plays." > "$P/INSTALL.txt"
+          (cd pkg && 7z a -tzip "MixPilot-$V-Windows.zip" MixPilot > /dev/null)
+          ls -la pkg
 
       - uses: actions/upload-artifact@v4
         with:
           name: MixPilot-Windows-VST3
-          path: out/
+          path: pkg/*.zip
+
+      - name: Publish zip to the dist-windows branch
+        shell: bash
+        run: |
+          set -e
+          cp pkg/*.zip "$RUNNER_TEMP/"
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan dist-tmp
+          git rm -rf -q .
+          rm -rf build pkg
+          cp "$RUNNER_TEMP"/*.zip .
+          git add *.zip
+          git commit -q -m "Windows build from ${GITHUB_SHA::7}"
+          git push -f origin dist-tmp:dist-windows
 
   macos:
     name: macOS (VST3 + AU, universal)
