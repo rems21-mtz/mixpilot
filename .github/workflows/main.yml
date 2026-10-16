@@ -40,6 +40,8 @@ jobs:
   macos:
     name: macOS (VST3 + AU, universal)
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -93,3 +95,17 @@ jobs:
         with:
           name: MixPilot-macOS
           path: pkg/*.zip
+
+      - name: Publish zip to the dist branch
+        run: |
+          set -e
+          cp pkg/*.zip "$RUNNER_TEMP/"
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan dist-tmp
+          git rm -rf -q .
+          rm -rf build pkg
+          cp "$RUNNER_TEMP"/*.zip .
+          git add *.zip
+          git commit -q -m "macOS build from ${GITHUB_SHA::7}"
+          git push -f origin dist-tmp:dist
