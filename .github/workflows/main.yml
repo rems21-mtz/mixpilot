@@ -55,6 +55,7 @@ jobs:
           path: pkg/*.zip
 
       - name: Publish zip to the dist-windows branch
+        if: github.ref_name != 'linux'
         shell: bash
         run: |
           set -e
@@ -129,6 +130,7 @@ jobs:
           path: pkg/*.zip
 
       - name: Publish zip to the dist branch
+        if: github.ref_name != 'linux'
         run: |
           set -e
           cp pkg/*.zip "$RUNNER_TEMP/"
@@ -141,3 +143,95 @@ jobs:
           git add *.zip
           git commit -q -m "macOS build from ${GITHUB_SHA::7}"
           git push -f origin dist-tmp:dist
+
+  linux:
+    name: Linux (VST3 + LV2, x86_64)
+    # 22.04 keeps the glibc requirement low enough for most current distros
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install JUCE dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
+            libgl1-mesa-dev libcurl4-openssl-dev
+
+      - name: Cache JUCE
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-8.0.4-linux
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --target MixPilotMaster_VST3 MixPilotMaster_LV2 MixPilotTrack_VST3 MixPilotTrack_LV2 --parallel 4
+
+      - name: Check the plug-ins load
+        run: |
+          python3 -c "
+          import ctypes,sys
+          for so in sys.argv[1:]:
+              m=ctypes.CDLL(so)
+              if so.endswith('.so') and '/VST3/' in so:
+                  m.ModuleEntry.restype=ctypes.c_bool; m.GetPluginFactory.restype=ctypes.c_void_p
+                  assert m.ModuleEntry(None) and m.GetPluginFactory(); print('VST3 ok', so)
+              else:
+                  m.lv2_descriptor.restype=ctypes.POINTER(ctypes.c_char_p); print('LV2', m.lv2_descriptor(0)[0].decode())
+          " build/MixPilot*_artefacts/Release/VST3/*.vst3/Contents/x86_64-linux/*.so build/MixPilot*_artefacts/Release/LV2/*.lv2/*.so
+
+      - name: Package
+        run: |
+          set -e
+          V=$(grep -m1 '^project(MixPilot VERSION' CMakeLists.txt | sed -E 's/.*VERSION ([0-9.]+).*/\1/')
+          P=pkg/MixPilot
+          mkdir -p "$P/VST3" "$P/LV2"
+          cp -R build/MixPilotMaster_artefacts/Release/VST3/*.vst3 build/MixPilotTrack_artefacts/Release/VST3/*.vst3 "$P/VST3/"
+          cp -R build/MixPilotMaster_artefacts/Release/LV2/*.lv2 build/MixPilotTrack_artefacts/Release/LV2/*.lv2 "$P/LV2/"
+          find "$P" -name '*.so' -exec strip {} +
+          {
+            echo "MixPilot v$V for Linux (x86_64, glibc 2.35+: Ubuntu 22.04, Debian 12, Fedora 36 or newer)"
+            echo "Free, pay what you want: https://buymeacoffee.com/remsplugins"
+            echo "Download page: https://remsplugins.github.io/"
+            echo ""
+            echo "INSTALL"
+            echo "1. VST3 (Bitwig, Reaper, Renoise, Tracktion, Ardour):"
+            echo "   copy everything in the VST3 folder to ~/.vst3"
+            echo "2. LV2 (Ardour, Carla, Qtractor, Zrythm):"
+            echo "   copy everything in the LV2 folder to ~/.lv2"
+            echo "3. Restart your DAW and rescan plug-ins."
+            echo ""
+            echo "Or from a terminal, inside this folder:"
+            echo "   mkdir -p ~/.vst3 ~/.lv2 && cp -r VST3/* ~/.vst3/ && cp -r LV2/* ~/.lv2/"
+            echo ""
+            echo "Put MixPilot Track last on every track, MixPilot Master last on the"
+            echo "Master, then press ASSISTANT while the loudest part plays."
+            echo "Track and Master talk through shared memory, so they also find each other"
+            echo "when your DAW runs plug-ins in separate processes (Bitwig sandboxing)."
+          } > "$P/INSTALL.txt"
+          (cd pkg && zip -qr "MixPilot-$V-Linux.zip" MixPilot)
+          ls -la pkg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MixPilot-Linux
+          path: pkg/*.zip
+
+      - name: Publish zip to the dist-linux branch
+        run: |
+          set -e
+          cp pkg/*.zip "$RUNNER_TEMP/"
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan dist-tmp
+          git rm -rf -q .
+          rm -rf build pkg
+          cp "$RUNNER_TEMP"/*.zip .
+          git add *.zip
+          git commit -q -m "Linux build from ${GITHUB_SHA::7}"
+          git push -f origin dist-tmp:dist-linux

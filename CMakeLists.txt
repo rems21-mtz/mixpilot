@@ -27,6 +27,9 @@ FetchContent_MakeAvailable(JUCE)
 if(APPLE)
     set(MIXPILOT_FORMATS VST3 AU)
     set(MIXPILOT_COPY TRUE)
+elseif(UNIX)
+    set(MIXPILOT_FORMATS VST3 LV2)
+    set(MIXPILOT_COPY FALSE)
 else()
     set(MIXPILOT_FORMATS VST3)
     set(MIXPILOT_COPY FALSE)
@@ -63,6 +66,7 @@ juce_add_plugin(MixPilotMaster
     BUNDLE_ID                   com.rems.mixpilot.master
     PLUGIN_MANUFACTURER_CODE    Rems
     PLUGIN_CODE                 Mpms
+    LV2URI                      "https://remsplugins.github.io/mixpilot/master"
     FORMATS                     ${MIXPILOT_FORMATS}
     PRODUCT_NAME                "MixPilot Master"
     IS_SYNTH                    FALSE
@@ -88,6 +92,7 @@ juce_add_plugin(MixPilotTrack
     BUNDLE_ID                   com.rems.mixpilot.track
     PLUGIN_MANUFACTURER_CODE    Rems
     PLUGIN_CODE                 Mptr
+    LV2URI                      "https://remsplugins.github.io/mixpilot/track"
     FORMATS                     ${MIXPILOT_FORMATS}
     PRODUCT_NAME                "MixPilot Track"
     IS_SYNTH                    FALSE
