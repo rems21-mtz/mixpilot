@@ -55,7 +55,7 @@ jobs:
           path: pkg/*.zip
 
       - name: Publish zip to the dist-windows branch
-        if: github.ref_name != 'linux' && !startsWith(github.ref_name, 'feature/')
+        if: github.ref_name != 'linux'
         shell: bash
         run: |
           set -e
@@ -68,7 +68,9 @@ jobs:
           cp "$RUNNER_TEMP"/*.zip .
           git add *.zip
           git commit -q -m "Windows build from ${GITHUB_SHA::7}"
-          git push -f origin dist-tmp:dist-windows
+          # les branches feature/* publient un aperçu sans toucher aux builds officiels
+          case "$GITHUB_REF_NAME" in feature/*) D="dist-preview-windows" ;; *) D="dist-windows" ;; esac
+          git push -f origin "dist-tmp:$D"
 
   macos:
     name: macOS (VST3 + AU, universal)
@@ -130,7 +132,7 @@ jobs:
           path: pkg/*.zip
 
       - name: Publish zip to the dist branch
-        if: github.ref_name != 'linux' && !startsWith(github.ref_name, 'feature/')
+        if: github.ref_name != 'linux'
         run: |
           set -e
           cp pkg/*.zip "$RUNNER_TEMP/"
@@ -142,7 +144,9 @@ jobs:
           cp "$RUNNER_TEMP"/*.zip .
           git add *.zip
           git commit -q -m "macOS build from ${GITHUB_SHA::7}"
-          git push -f origin dist-tmp:dist
+          # les branches feature/* publient un aperçu sans toucher aux builds officiels
+          case "$GITHUB_REF_NAME" in feature/*) D="dist-preview" ;; *) D="dist" ;; esac
+          git push -f origin "dist-tmp:$D"
 
   linux:
     name: Linux (VST3 + LV2, x86_64)
@@ -223,7 +227,6 @@ jobs:
           path: pkg/*.zip
 
       - name: Publish zip to the dist-linux branch
-        if: ${{ !startsWith(github.ref_name, 'feature/') }}
         run: |
           set -e
           cp pkg/*.zip "$RUNNER_TEMP/"
@@ -235,4 +238,6 @@ jobs:
           cp "$RUNNER_TEMP"/*.zip .
           git add *.zip
           git commit -q -m "Linux build from ${GITHUB_SHA::7}"
-          git push -f origin dist-tmp:dist-linux
+          # les branches feature/* publient un aperçu sans toucher aux builds officiels
+          case "$GITHUB_REF_NAME" in feature/*) D="dist-preview-linux" ;; *) D="dist-linux" ;; esac
+          git push -f origin "dist-tmp:$D"
