@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
 
-project(MixPilot VERSION 1.1.0)
+project(MixPilot VERSION 1.1.1)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -62,7 +62,8 @@ endfunction()
 #  MixPilot Master  (à mettre sur la piste Master)
 # ---------------------------------------------------------------------------
 juce_add_plugin(MixPilotMaster
-    COMPANY_NAME                "Rems"
+    COMPANY_NAME                "Rems Plugins"
+    COMPANY_WEBSITE             "https://remsplugins.github.io"
     BUNDLE_ID                   com.rems.mixpilot.master
     PLUGIN_MANUFACTURER_CODE    Rems
     PLUGIN_CODE                 Mpms
@@ -88,7 +89,8 @@ mixpilot_configure(MixPilotMaster)
 #  MixPilot Track  (à mettre sur chaque piste)
 # ---------------------------------------------------------------------------
 juce_add_plugin(MixPilotTrack
-    COMPANY_NAME                "Rems"
+    COMPANY_NAME                "Rems Plugins"
+    COMPANY_WEBSITE             "https://remsplugins.github.io"
     BUNDLE_ID                   com.rems.mixpilot.track
     PLUGIN_MANUFACTURER_CODE    Rems
     PLUGIN_CODE                 Mptr
