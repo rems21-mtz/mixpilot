@@ -55,7 +55,7 @@ jobs:
           path: pkg/*.zip
 
       - name: Publish zip to the dist-windows branch
-        if: github.ref_name != 'linux'
+        if: github.ref_name != 'linux' && !startsWith(github.ref_name, 'feature/')
         shell: bash
         run: |
           set -e
@@ -130,7 +130,7 @@ jobs:
           path: pkg/*.zip
 
       - name: Publish zip to the dist branch
-        if: github.ref_name != 'linux'
+        if: github.ref_name != 'linux' && !startsWith(github.ref_name, 'feature/')
         run: |
           set -e
           cp pkg/*.zip "$RUNNER_TEMP/"
@@ -223,6 +223,7 @@ jobs:
           path: pkg/*.zip
 
       - name: Publish zip to the dist-linux branch
+        if: ${{ !startsWith(github.ref_name, 'feature/') }}
         run: |
           set -e
           cp pkg/*.zip "$RUNNER_TEMP/"

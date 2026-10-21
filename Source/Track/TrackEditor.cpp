@@ -36,7 +36,10 @@ namespace
               u ("Analyses the track for 8 s. Do it during a representative section where the track plays clearly. "
                  "The Master's ASSISTANT triggers listening on all tracks at once.") },
             { u ("Spectrum"),
-              u ("Grey: the sound before MixPilot. Blue: after. Orange dots: the instrument's ideal shape. Green: the applied EQ curve (low cut included).") },
+              u ("Grey: the sound before MixPilot. Blue: after. Orange dots: the instrument's ideal shape. Green: the applied EQ curve (low cut included).\n"
+                 "After listening, each EQ band gets a point on the curve: drag it up/down for gain, left/right for frequency. Hold Shift for fine moves. "
+                 "Edited points turn orange; your edits stay on top of the analysis, even when it updates. "
+                 "Double-click a point to return it to the analysis, right-click to reset all edits.") },
             { u ("Gain"),
               u ("Sets the track at the right level in the mix, according to instrument, style and output (e.g. vocal further forward in Pop, louder kick in Electro and Club). "
                  "Gain is checked after EQ and compression to land right.") },
@@ -142,7 +145,41 @@ TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (
     spectrum.fftSize = mp::SpectrumAnalyzer::fftSize;
     spectrum.eqCurve = [this] (float f) { return proc.eqResponseDb (f); };
     spectrum.caption = u ("BEFORE (grey) · AFTER (blue) · IDEAL SHAPE (dotted) · CORRECTION (green)");
-    spectrum.setTooltip (u ("Grey = before MixPilot, blue = after, dotted = the instrument's ideal shape, green = applied EQ curve."));
+    spectrum.setTooltip (u ("Grey = before MixPilot, blue = after, dotted = the instrument's ideal shape, green = applied EQ curve. "
+                            "After listening, drag the EQ points to adjust them (Shift = fine, double-click = back to the analysis, right-click = reset)."));
+
+    // Points d'EQ éditables après l'analyse : la retouche s'ajoute à la correction calculée
+    spectrum.eqPoints = [this]
+    {
+        std::vector<SpectrumView::EqPoint> pts;
+        if (! proc.isEqEditable()) return pts;
+        for (int b = 0; b < mp::kBands; ++b)
+            pts.push_back ({ proc.getBandFreq (b), proc.getBandGainDb (b), proc.isBandEdited (b) });
+        return pts;
+    };
+    auto setParam = [this] (const String& id, float v)
+    {
+        if (auto* p = proc.apvts.getParameter (id)) p->setValueNotifyingHost (p->convertTo0to1 (v));
+    };
+    spectrum.onPointMoved = [this, setParam] (int b, float freq, float gainDb)
+    {
+        setParam ("eqAdj" + String (b), gainDb - proc.getAnalysisBandGainDb (b));
+        setParam ("eqShift" + String (b), jlimit (-mp::kMaxBandShiftOct, mp::kMaxBandShiftOct, std::log2 (freq / mp::octaveEQFreq (b))));
+    };
+    spectrum.onPointGesture = [this] (int b, bool starting)
+    {
+        for (auto id : { "eqAdj" + String (b), "eqShift" + String (b) })
+            if (auto* p = proc.apvts.getParameter (id)) { if (starting) p->beginChangeGesture(); else p->endChangeGesture(); }
+    };
+    spectrum.onPointReset = [setParam] (int b)
+    {
+        setParam ("eqAdj" + String (b), 0.0f);
+        setParam ("eqShift" + String (b), 0.0f);
+    };
+    spectrum.onResetAll = [setParam]
+    {
+        for (int b = 0; b < mp::kBands; ++b) { setParam ("eqAdj" + String (b), 0.0f); setParam ("eqShift" + String (b), 0.0f); }
+    };
     addAndMakeVisible (spectrum);
 
     help = std::make_unique<HelpOverlay> (u ("MixPilot Track guide"), trackHelp());
@@ -343,6 +380,12 @@ void TrackEditor::drawCard (Graphics& g, int i)
                     g.setColour (col::purple);
                     g.fillRect (barFor (mix, x0 + w * 0.55f, w * 0.45f));
                 }
+                if (has && proc.isBandEdited (b))
+                {
+                    // gain final après retouche manuelle (contour)
+                    g.setColour (col::text.withAlpha (0.85f));
+                    g.drawRect (barFor (proc.getBandGainDb (b), x0, w).expanded (0.0f, 0.5f), 1.0f);
+                }
             }
             g.setFont (font (9.0f)); g.setColour (col::textDim);
             g.drawText ("31", graph.withHeight (10).translated (0, graph.getHeight() + 1), Justification::left);
@@ -358,6 +401,18 @@ void TrackEditor::drawCard (Graphics& g, int i)
             legend (col::accent2, u ("towards ideal shape"));
             legend (col::warn,    u ("room for other tracks"));
             legend (col::purple,  u ("requested by Master"));
+            if (has)
+            {
+                bool edited = false;
+                for (int b = 0; b < mp::kBands; ++b) edited = edited || proc.isBandEdited (b);
+                if (edited)
+                {
+                    auto line = r.removeFromTop (13);
+                    g.setColour (col::text.withAlpha (0.85f));
+                    g.drawRect (Rectangle<float> ((float) line.getX(), line.getCentreY() - 3.0f, 8.0f, 6.0f), 1.0f);
+                    g.setColour (col::textDim); g.drawText (u ("your edits (drag the points)"), line.withTrimmedLeft (12), Justification::centredLeft);
+                }
+            }
             break;
         }
 

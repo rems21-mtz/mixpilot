@@ -29,6 +29,18 @@ AudioProcessorValueTreeState::ParameterLayout TrackProcessor::createLayout()
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { "duckOn", 1 }, "Space on", true));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { "bypass", 1 }, "Bypass", false));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { "followMaster", 1 }, "Follow Master corrections", true));
+
+    // Retouches manuelles de l'EQ (points déplacés à la souris), ajoutées par-dessus l'analyse
+    auto dB  = AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int) { return (v > 0 ? "+" : "") + String (v, 1) + " dB"; });
+    auto oct = AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int) { return (v > 0 ? "+" : "") + String (v, 2) + " oct"; });
+    for (int b = 0; b < mp::kBands; ++b)
+    {
+        const String hz = String (mp::kBandFreqs[(size_t) b], 0) + " Hz";
+        l.add (std::make_unique<AudioParameterFloat> (ParameterID { "eqAdj" + String (b), 2 }, "EQ edit " + hz,
+                                                      NormalisableRange<float> (-24, 24, 0.01f), 0.0f, dB));
+        l.add (std::make_unique<AudioParameterFloat> (ParameterID { "eqShift" + String (b), 2 }, "EQ freq " + hz,
+                                                      NormalisableRange<float> (-mp::kMaxBandShiftOct, mp::kMaxBandShiftOct, 0.001f), 0.0f, oct));
+    }
     return l;
 }
 
@@ -305,9 +317,11 @@ void TrackProcessor::solve()
 
     correction = mp::solveTrack (inst, learned, learnedLufs, getEffectiveGenre(), getEffectiveOutput(), param ("amount"), others, kickPresent, voicePresent);
 
-    // Ce que cette piste apporte au mix après ses propres corrections
+    // Ce que cette piste apporte au mix après ses propres corrections (retouches manuelles comprises)
     const float trimNow = correction.trimDb + trimResidual;
-    const auto myOut = mp::estimateOutBands (learned.bandsDb, correction, trimNow);
+    auto withEdits = correction;
+    for (int k = 0; k < mp::kBands; ++k) withEdits.eqDb[(size_t) k] += userEqDb (k);
+    const auto myOut = mp::estimateOutBands (learned.bandsDb, withEdits, trimNow);
     if (slot >= 0)
         for (int k = 0; k < mp::kBands; ++k) mp::bus().slots[slot].outBands[k].store (myOut[(size_t) k]);
 
@@ -341,9 +355,14 @@ void TrackProcessor::applyCorrection()
     const bool haveSolution = learned.valid;
     const bool eqOn = param ("eqOn") > 0.5f && haveSolution;
 
-    mp::Bands g {};
-    for (int k = 0; k < mp::kBands; ++k) g[(size_t) k] = jlimit (-9.0f, 6.0f, c.eqDb[(size_t) k] + c.mixDb[(size_t) k]);
-    mp::configureOctaveEQ (eq, 0, g, eqOn);
+    mp::Bands g {}, shift {};
+    for (int k = 0; k < mp::kBands; ++k)
+    {
+        g[(size_t) k] = getBandGainDb (k);
+        shift[(size_t) k] = param (("eqShift" + String (k)).toRawUTF8());
+    }
+    mp::configureOctaveEQ (eq, 0, g, eqOn, shift);
+    editsApplied = currentEdits();
     eq.setBand (10, mp::BiquadCoeffs::HighPass, c.hpfHz, 0.7071f, 0.0f, eqOn && c.hpfHz > 21.0f);
 
     compThr.store (c.compThresholdDb); compRatio.store (c.compRatio);
@@ -378,6 +397,9 @@ void TrackProcessor::timerCallback()
         lastListenRequest = req;
         if (param ("bypass") < 0.5f) startListening (b.listenSeconds.load());
     }
+
+    // Un point d'EQ a bougé (souris, automation) : on l'applique tout de suite
+    if (learned.valid && currentEdits() != editsApplied) applyCorrection();
 
     const int64_t elapsed = mp::nowMs() - phaseStart;
     switch (phase)
@@ -453,7 +475,7 @@ void TrackProcessor::timerCallback()
         s.loudness.store (outMeter.getShortTerm());
         s.trimDb.store (appliedTrim.load());
         s.gainReductionDb.store (comp.gainReductionDb.load());
-        for (int k = 0; k < mp::kBands; ++k) s.eq[k].store (correction.eqDb[(size_t) k] + correction.mixDb[(size_t) k]);
+        for (int k = 0; k < mp::kBands; ++k) s.eq[k].store (getBandGainDb (k));
         s.duckDb.store (param ("duckOn") > 0.5f ? duckDepth.load() : 0.0f);
         s.inputPeakDb.store (inPeakHold);
         s.confidence.store (detection.confidence);
@@ -552,6 +574,48 @@ void TrackProcessor::updateTrackProperties (const TrackProperties& p)
         const SpinLock::ScopedLockType sl (nameLock);
         trackName = p.name;
     }
+}
+
+//==============================================================================
+float TrackProcessor::userEqDb (int band) const
+{
+    return param (("eqAdj" + String (band)).toRawUTF8());
+}
+
+float TrackProcessor::getAnalysisBandGainDb (int band) const
+{
+    return jlimit (-9.0f, 6.0f, correction.eqDb[(size_t) band] + correction.mixDb[(size_t) band]);
+}
+
+float TrackProcessor::getBandGainDb (int band) const
+{
+    return jlimit (-12.0f, 12.0f, getAnalysisBandGainDb (band) + userEqDb (band));
+}
+
+float TrackProcessor::getBandFreq (int band) const
+{
+    return mp::octaveEQFreq (band) * std::exp2 (param (("eqShift" + String (band)).toRawUTF8()));
+}
+
+bool TrackProcessor::isBandEdited (int band) const
+{
+    return std::abs (userEqDb (band)) > 0.05f || std::abs (param (("eqShift" + String (band)).toRawUTF8())) > 0.005f;
+}
+
+bool TrackProcessor::isEqEditable() const
+{
+    return learned.valid && param ("eqOn") > 0.5f && param ("bypass") < 0.5f;
+}
+
+TrackProcessor::EqEdits TrackProcessor::currentEdits() const
+{
+    EqEdits e {};
+    for (int k = 0; k < mp::kBands; ++k)
+    {
+        e[(size_t) (2 * k)]     = userEqDb (k);
+        e[(size_t) (2 * k + 1)] = param (("eqShift" + String (k)).toRawUTF8());
+    }
+    return e;
 }
 
 //==============================================================================

@@ -86,6 +86,7 @@ Sur chaque piste, **FOLLOW MASTER** permet de refuser ces corrections.
 - **Gain** : place la piste au bon niveau dans le mix selon l'instrument, le style et la sortie.
 - **Nettoyage** : coupe-bas adapté (par exemple 90 Hz sur une voix, 300 Hz sur un charley).
 - **EQ** : rapproche le spectre de la forme idéale de l'instrument (courbe verte).
+- **EQ éditable** : après l'analyse, chaque bande a un point sur la courbe verte. On le glisse à la souris (haut/bas = gain, gauche/droite = fréquence, Maj = réglage fin). La retouche s'ajoute à la correction calculée et reste en place quand elle se met à jour. Double-clic : retour à l'analyse, clic droit : tout réinitialiser. Même chose sur le spectre de MixPilot Master, où les points pilotent les curseurs de la section EQ.
 - **Anti-masquage** : la piste se creuse légèrement là où une piste prioritaire joue (barres orange).
 - **Compression** : ratio, attaque et relâchement adaptés à l'instrument et au style.
 - **Espace** : la basse baisse ses graves quand le kick frappe (ducking automatique, sans sidechain à câbler).

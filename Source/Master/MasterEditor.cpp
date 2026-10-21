@@ -34,7 +34,9 @@ namespace
                  "BYPASS turns the Master off completely.") },
             { u ("Spectrum"),
               u ("Grey: what comes in. Blue: what goes out. Orange dots: the target (style or reference). Purple: the loaded reference. Green: the Master EQ correction.\n"
-                 "The display is tilted so that a balanced mix looks roughly flat.") },
+                 "The display is tilted so that a balanced mix looks roughly flat.\n"
+                 "Each EQ band has a point on the green curve: drag it up/down for gain, left/right for frequency (Shift = fine). "
+                 "Edited points turn orange. Double-click a point to return it to the Assistant's value, right-click to reset all bands.") },
             { u ("Loudness"),
               u ("INTEGRATED LUFS: average perceived loudness since the last RESET (the value Spotify, YouTube… measure).\n"
                  "Short term: loudness of the last 3 seconds. True peak: the real peak, including between samples.\n"
@@ -55,7 +57,8 @@ namespace
                  "The slider sets each side's share. In the middle it's half and half. With no linked track, the Master corrects everything.\n"
                  "Tracks show their share in purple in their EQ card.") },
             { u ("EQ"),
-              u ("10 octave bands set by the Assistant to bring the mix closer to the target, plus AIR (extreme highs, useful for vinyl). Double-click: back to 0.") },
+              u ("10 octave bands set by the Assistant to bring the mix closer to the target, plus AIR (extreme highs, useful for vinyl). Double-click: back to 0.\n"
+                 "You can also drag the points directly on the spectrum, which moves these sliders and lets you shift each band's frequency.") },
             { u ("Dynamics"),
               u ("GLUE: gentle 3-band compression that holds the mix together. Higher = denser, but less punch. GR = current gain reduction.\n"
                  "WARMTH: light saturation that adds density and roundness.") },
@@ -278,7 +281,48 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     spectrum.eqCurve = [this] (float f) { return proc.eqResponseDb (f); };
     spectrum.showTarget = true;
     spectrum.caption = u ("INPUT (grey) · OUTPUT (blue) · TARGET (dotted) · REFERENCE (purple) · CORRECTION (green)");
-    spectrum.setTooltip (u ("Mix spectrum. Grey = input, blue = output, dotted = target, purple = reference, green = Master EQ correction."));
+    spectrum.setTooltip (u ("Mix spectrum. Grey = input, blue = output, dotted = target, purple = reference, green = Master EQ correction. "
+                            "Drag the EQ points to adjust them (Shift = fine, double-click = back to the Assistant, right-click = reset)."));
+
+    // Points d'EQ éditables : ce sont les mêmes paramètres que les curseurs de la section EQ
+    spectrum.pointMinDb = -6.0f;
+    spectrum.pointMaxDb = 6.0f;
+    spectrum.eqPoints = [this]
+    {
+        std::vector<SpectrumView::EqPoint> pts;
+        if (proc.apvts.getRawParameterValue ("eqOn")->load() < 0.5f || proc.apvts.getRawParameterValue ("bypass")->load() > 0.5f) return pts;
+        for (int b = 0; b < mp::kBands; ++b)
+        {
+            const float gain = proc.getBandGainDb (b);
+            const bool edited = std::abs (gain - proc.getAnalysisBandGainDb (b)) > 0.05f
+                             || std::abs (proc.apvts.getRawParameterValue ("eqShift" + String (b))->load()) > 0.005f;
+            pts.push_back ({ proc.getBandFreq (b), gain, edited });
+        }
+        return pts;
+    };
+    auto setParam = [this] (const String& id, float v)
+    {
+        if (auto* p = proc.apvts.getParameter (id)) p->setValueNotifyingHost (p->convertTo0to1 (v));
+    };
+    spectrum.onPointMoved = [setParam] (int b, float freq, float gainDb)
+    {
+        setParam ("eq" + String (b), gainDb);
+        setParam ("eqShift" + String (b), jlimit (-mp::kMaxBandShiftOct, mp::kMaxBandShiftOct, std::log2 (freq / mp::octaveEQFreq (b))));
+    };
+    spectrum.onPointGesture = [this] (int b, bool starting)
+    {
+        for (auto id : { "eq" + String (b), "eqShift" + String (b) })
+            if (auto* p = proc.apvts.getParameter (id)) { if (starting) p->beginChangeGesture(); else p->endChangeGesture(); }
+    };
+    spectrum.onPointReset = [this, setParam] (int b)
+    {
+        setParam ("eq" + String (b), proc.getAnalysisBandGainDb (b));
+        setParam ("eqShift" + String (b), 0.0f);
+    };
+    spectrum.onResetAll = [this, setParam]
+    {
+        for (int b = 0; b < mp::kBands; ++b) { setParam ("eq" + String (b), proc.getAnalysisBandGainDb (b)); setParam ("eqShift" + String (b), 0.0f); }
+    };
     addAndMakeVisible (spectrum);
 
     help = std::make_unique<HelpOverlay> (u ("MixPilot Master guide"), masterHelp());

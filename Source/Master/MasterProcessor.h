@@ -84,6 +84,10 @@ public:
     mp::MixReview buildReview() const;   // révision complète du mix (pistes + global)
 
     float eqResponseDb (float f) const { return eq.responseDb (f); }
+    float getBandFreq (int band) const { return mp::octaveEQFreq (band) * std::exp2 (eqShiftParams[band]->load()); }
+    float getBandGainDb (int band) const { return eqGainParams[band]->load(); }
+    // valeur proposée par la dernière analyse (0 dB tant que l'Assistant n'a pas tourné)
+    float getAnalysisBandGainDb (int band) const { return lastLearn.valid ? lastCorrection.eqDb[(size_t) band] : 0.0f; }
     float getLimiterGr() const { return limiter.gainReductionDb.load(); }
     double getCurrentSampleRate() const { return currentSR; }
 
@@ -102,6 +106,8 @@ private:
     int    maxBlock  = 512;
 
     mp::SmoothEQ<11> eq;
+    std::atomic<float>* eqGainParams[mp::kBands] {};
+    std::atomic<float>* eqShiftParams[mp::kBands] {};
     juce::dsp::LinkwitzRileyFilter<float> lp1, hp1, lp2, hp2, ap2;
     mp::Compressor compLow, compMid, compHigh;
     juce::AudioBuffer<float> bandLow, bandMid, bandHigh, dryDelayBuf;
