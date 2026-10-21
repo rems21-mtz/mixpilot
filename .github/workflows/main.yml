@@ -68,7 +68,9 @@ jobs:
           cp "$RUNNER_TEMP"/*.zip .
           git add *.zip
           git commit -q -m "Windows build from ${GITHUB_SHA::7}"
-          git push -f origin dist-tmp:dist-windows
+          # les branches feature/* publient un aperçu sans toucher aux builds officiels
+          case "$GITHUB_REF_NAME" in feature/*) D="dist-preview-windows" ;; *) D="dist-windows" ;; esac
+          git push -f origin "dist-tmp:$D"
 
   macos:
     name: macOS (VST3 + AU, universal)
@@ -142,7 +144,9 @@ jobs:
           cp "$RUNNER_TEMP"/*.zip .
           git add *.zip
           git commit -q -m "macOS build from ${GITHUB_SHA::7}"
-          git push -f origin dist-tmp:dist
+          # les branches feature/* publient un aperçu sans toucher aux builds officiels
+          case "$GITHUB_REF_NAME" in feature/*) D="dist-preview" ;; *) D="dist" ;; esac
+          git push -f origin "dist-tmp:$D"
 
   linux:
     name: Linux (VST3 + LV2, x86_64)
@@ -234,4 +238,6 @@ jobs:
           cp "$RUNNER_TEMP"/*.zip .
           git add *.zip
           git commit -q -m "Linux build from ${GITHUB_SHA::7}"
-          git push -f origin dist-tmp:dist-linux
+          # les branches feature/* publient un aperçu sans toucher aux builds officiels
+          case "$GITHUB_REF_NAME" in feature/*) D="dist-preview-linux" ;; *) D="dist-linux" ;; esac
+          git push -f origin "dist-tmp:$D"

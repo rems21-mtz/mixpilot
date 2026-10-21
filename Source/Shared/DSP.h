@@ -198,15 +198,24 @@ namespace mp
         BiquadState state[2][N];
     };
 
-    // Filtres de "match EQ" sur les 10 bandes d'octave
+    // Fréquence de base d'une bande du match EQ (les extrêmes sont des shelves)
+    inline float octaveEQFreq (int b)
+    {
+        return b == 0 ? 50.0f : (b == kBands - 1 ? 11000.0f : kBandFreqs[(size_t) b]);
+    }
+
+    // Déplacement manuel maximal d'une bande (en octaves, de part et d'autre)
+    constexpr float kMaxBandShiftOct = 0.75f;
+
+    // Filtres de "match EQ" sur les 10 bandes d'octave (shiftOct : décalage manuel de chaque bande)
     template <int N>
-    inline void configureOctaveEQ (SmoothEQ<N>& eq, int firstIndex, const Bands& gains, bool enabled = true)
+    inline void configureOctaveEQ (SmoothEQ<N>& eq, int firstIndex, const Bands& gains, bool enabled = true, const Bands& shiftOct = {})
     {
         static_assert (N >= kBands, "EQ too small");
         for (int b = 0; b < kBands; ++b)
         {
             const auto type = b == 0 ? BiquadCoeffs::LowShelf : (b == kBands - 1 ? BiquadCoeffs::HighShelf : BiquadCoeffs::Peak);
-            const float f   = b == 0 ? 50.0f : (b == kBands - 1 ? 11000.0f : kBandFreqs[(size_t) b]);
+            const float f   = juce::jlimit (20.0f, 20000.0f, octaveEQFreq (b) * std::exp2 (shiftOct[(size_t) b]));
             const float q   = b == 0 || b == kBands - 1 ? 0.7f : 1.1f;
             eq.setBand (firstIndex + b, type, f, q, gains[(size_t) b], enabled);
         }

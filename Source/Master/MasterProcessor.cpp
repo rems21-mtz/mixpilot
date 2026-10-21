@@ -54,6 +54,11 @@ AudioProcessorValueTreeState::ParameterLayout MasterProcessor::createLayout()
     for (int b = 0; b < mp::kBands; ++b)
         l.add (std::make_unique<AudioParameterFloat> (ParameterID { "eq" + String (b), 1 }, "EQ " + String (mp::kBandFreqs[(size_t) b], 0) + " Hz",
                                                       NormalisableRange<float> (-6, 6, 0.01f), 0.0f, dB));
+    // Décalage de fréquence des bandes (points déplacés à la souris sur le spectre)
+    auto oct = AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int) { return (v > 0 ? "+" : "") + String (v, 2) + " oct"; });
+    for (int b = 0; b < mp::kBands; ++b)
+        l.add (std::make_unique<AudioParameterFloat> (ParameterID { "eqShift" + String (b), 2 }, "EQ freq " + String (mp::kBandFreqs[(size_t) b], 0) + " Hz",
+                                                      NormalisableRange<float> (-mp::kMaxBandShiftOct, mp::kMaxBandShiftOct, 0.001f), 0.0f, oct));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "highTame", 1 }, "Extreme highs", NormalisableRange<float> (-6, 0, 0.01f), 0.0f, dB));
     l.add (std::make_unique<AudioParameterBool>  (ParameterID { "eqOn", 1 }, "EQ on", true));
 
@@ -93,6 +98,11 @@ MasterProcessor::MasterProcessor()
     lp2.setType (dsp::LinkwitzRileyFilterType::lowpass);  hp2.setType (dsp::LinkwitzRileyFilterType::highpass);
     ap2.setType (dsp::LinkwitzRileyFilterType::allpass);
     for (auto* c : { &compLow, &compMid, &compHigh }) c->setRms (true);
+    for (int b = 0; b < mp::kBands; ++b)
+    {
+        eqGainParams[b]  = apvts.getRawParameterValue ("eq" + String (b));
+        eqShiftParams[b] = apvts.getRawParameterValue ("eqShift" + String (b));
+    }
 
     mp::bus().masterOwner.store (masterId);
     startTimerHz (30);
@@ -225,9 +235,13 @@ void MasterProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
 
         // 1) EQ ------------------------------------------------------------------
         const bool eqOn = param ("eqOn") > 0.5f;
-        mp::Bands g {};
-        for (int b = 0; b < mp::kBands; ++b) g[(size_t) b] = apvts.getRawParameterValue ("eq" + String (b))->load();
-        mp::configureOctaveEQ (eq, 0, g, eqOn);
+        mp::Bands g {}, shift {};
+        for (int b = 0; b < mp::kBands; ++b)
+        {
+            g[(size_t) b]     = eqGainParams[b]->load();
+            shift[(size_t) b] = eqShiftParams[b]->load();
+        }
+        mp::configureOctaveEQ (eq, 0, g, eqOn, shift);
         eq.setBand (10, mp::BiquadCoeffs::HighShelf, 12000.0f, 0.7f, param ("highTame"), eqOn);
         eq.process (buffer);
 

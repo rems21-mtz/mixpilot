@@ -64,6 +64,13 @@ public:
     juce::String getTrackName() const     { const juce::SpinLock::ScopedLockType sl (nameLock); return trackName; }
 
     float  eqResponseDb (float f) const   { return eq.responseDb (f); }
+
+    // EQ éditable : gain final d'une bande = analyse + retouche manuelle (eqAdjN), fréquence décalée par eqShiftN
+    float  getAnalysisBandGainDb (int band) const;
+    float  getBandGainDb (int band) const;
+    float  getBandFreq (int band) const;
+    bool   isBandEdited (int band) const;
+    bool   isEqEditable() const;
     juce::StringArray getTips() const;
     bool   receivesMasterCorrection() const;
     double getCurrentSampleRate() const   { return currentSR; }
@@ -75,6 +82,10 @@ private:
     void solve();
     void applyCorrection();
     float param (const char* id) const { return apvts.getRawParameterValue (id)->load(); }
+    float userEqDb (int band) const;
+    using EqEdits = std::array<float, 2 * mp::kBands>;
+    EqEdits currentEdits() const;
+    EqEdits editsApplied {};
 
     double currentSR = 48000.0;
     uint64_t instanceId = mp::makeInstanceId();

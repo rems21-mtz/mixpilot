@@ -181,6 +181,16 @@ namespace mp::ui
         bool showRef = false;
         juce::String caption;
 
+        // Points d'EQ déplaçables à la souris : vertical = gain, horizontal = fréquence.
+        // eqPoints vide (ou non défini) = courbe en lecture seule.
+        struct EqPoint { float freq = 1000.0f, gainDb = 0.0f; bool edited = false; };
+        std::function<std::vector<EqPoint>()> eqPoints;
+        std::function<void (int, float freq, float gainDb)> onPointMoved;
+        std::function<void (int, bool starting)> onPointGesture;   // début / fin de glissement (automation)
+        std::function<void (int)> onPointReset;                    // revient à la valeur de l'analyse
+        std::function<void()> onResetAll;
+        float pointMinDb = -12.0f, pointMaxDb = 12.0f;
+
         float xForFreq (float f) const
         {
             const auto b = getLocalBounds().toFloat();
@@ -245,9 +255,152 @@ namespace mp::ui
                 g.setFont (font (11.0f, true));
                 g.drawText (caption, b.reduced (10, 6), juce::Justification::topLeft);
             }
+
+            drawPoints (g);
+        }
+
+        // ---- édition des points ---------------------------------------------
+        void mouseMove (const juce::MouseEvent& e) override
+        {
+            const int h = pointAt (e.position);
+            if (h != hover) { hover = h; repaint(); }
+            setMouseCursor (h >= 0 ? juce::MouseCursor::DraggingHandCursor : juce::MouseCursor::NormalCursor);
+        }
+
+        void mouseExit (const juce::MouseEvent&) override
+        {
+            if (hover >= 0 && dragging < 0) { hover = -1; repaint(); }
+        }
+
+        void mouseDown (const juce::MouseEvent& e) override
+        {
+            const auto pts = currentPoints();
+            if (pts.empty()) return;
+            const int i = pointAt (e.position);
+            if (e.mods.isPopupMenu()) { showMenu (i); return; }
+            if (i < 0) return;
+            dragging = hover = i;
+            dragStartFreq = pts[(size_t) i].freq;
+            dragStartGain = pts[(size_t) i].gainDb;
+            if (onPointGesture) onPointGesture (i, true);
+            setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+        }
+
+        void mouseDrag (const juce::MouseEvent& e) override
+        {
+            if (dragging < 0 || ! onPointMoved) return;
+            // Maj : réglage fin
+            const float k = e.mods.isShiftDown() ? 0.25f : 1.0f;
+            const auto d = e.position - e.mouseDownPosition;
+            const float x = juce::jlimit (0.0f, (float) getWidth(), xForFreq (dragStartFreq) + d.x * k);
+            const float db = juce::jlimit (pointMinDb, pointMaxDb, gainForY (yForGain (dragStartGain) + d.y * k));
+            onPointMoved (dragging, freqForX (x), db);
+            repaint();
+        }
+
+        void mouseUp (const juce::MouseEvent&) override
+        {
+            if (dragging < 0) return;
+            if (onPointGesture) onPointGesture (dragging, false);
+            dragging = -1;
+            repaint();
+        }
+
+        void mouseDoubleClick (const juce::MouseEvent& e) override
+        {
+            const int i = pointAt (e.position);
+            if (i >= 0 && onPointReset) { onPointReset (i); repaint(); }
+        }
+
+        juce::String getTooltip() override
+        {
+            // pas d'infobulle pendant qu'on manipule un point : l'étiquette du point suffit
+            return hover >= 0 || dragging >= 0 ? juce::String() : SettableTooltipClient::getTooltip();
         }
 
     private:
+        int hover = -1, dragging = -1;
+        float dragStartFreq = 1000.0f, dragStartGain = 0.0f;
+
+        std::vector<EqPoint> currentPoints() const { return eqPoints ? eqPoints() : std::vector<EqPoint> {}; }
+
+        float yForGain (float db) const
+        {
+            const auto b = getLocalBounds().toFloat();
+            return b.getCentreY() - db / 12.0f * (b.getHeight() * 0.42f);
+        }
+        float gainForY (float y) const
+        {
+            const auto b = getLocalBounds().toFloat();
+            return (b.getCentreY() - y) / juce::jmax (1.0f, b.getHeight() * 0.42f) * 12.0f;
+        }
+
+        int pointAt (juce::Point<float> p) const
+        {
+            const auto pts = currentPoints();
+            int best = -1; float bestD = 11.0f;
+            for (size_t i = 0; i < pts.size(); ++i)
+            {
+                const float d = p.getDistanceFrom ({ xForFreq (pts[i].freq), yForGain (pts[i].gainDb) });
+                if (d < bestD) { bestD = d; best = (int) i; }
+            }
+            return best;
+        }
+
+        void showMenu (int i)
+        {
+            juce::PopupMenu m;
+            m.addItem (1, juce::String::fromUTF8 ("Reset this band to the analysis"), i >= 0 && onPointReset != nullptr);
+            m.addItem (2, juce::String::fromUTF8 ("Reset all EQ edits"), onResetAll != nullptr);
+            juce::Component::SafePointer<SpectrumView> safe (this);
+            m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition(), [safe, i] (int r)
+            {
+                if (safe == nullptr) return;
+                if (r == 1 && safe->onPointReset) safe->onPointReset (i);
+                if (r == 2 && safe->onResetAll)   safe->onResetAll();
+                safe->repaint();
+            });
+        }
+
+        static juce::String freqText (float f)
+        {
+            return f >= 1000.0f ? juce::String (f / 1000.0f, f >= 10000.0f ? 1 : 2) + " kHz" : juce::String (juce::roundToInt (f)) + " Hz";
+        }
+
+        void drawPoints (juce::Graphics& g)
+        {
+            const auto pts = currentPoints();
+            if (pts.empty()) return;
+            const int active = dragging >= 0 ? dragging : hover;
+            for (size_t i = 0; i < pts.size(); ++i)
+            {
+                const juce::Point<float> c { xForFreq (pts[i].freq), yForGain (juce::jlimit (-12.0f, 12.0f, pts[i].gainDb)) };
+                const bool hot = (int) i == active;
+                const float r = hot ? 6.5f : 5.0f;
+                g.setColour (col::panel);
+                g.fillEllipse (juce::Rectangle<float> (r * 2 + 3, r * 2 + 3).withCentre (c));
+                g.setColour (pts[i].edited ? col::warn : col::accent2);
+                if (hot) g.fillEllipse (juce::Rectangle<float> (r * 2, r * 2).withCentre (c));
+                else     g.drawEllipse (juce::Rectangle<float> (r * 2, r * 2).withCentre (c), 2.0f);
+            }
+            if (active >= 0 && active < (int) pts.size())
+            {
+                const auto& p = pts[(size_t) active];
+                const juce::String txt = freqText (p.freq) + "   " + (p.gainDb >= 0 ? "+" : "") + juce::String (p.gainDb, 1) + " dB";
+                const auto b = getLocalBounds().toFloat();
+                const float x = xForFreq (p.freq), y = yForGain (juce::jlimit (-12.0f, 12.0f, p.gainDb));
+                auto r = juce::Rectangle<float> (112.0f, 20.0f).withCentre ({ x, y < b.getCentreY() ? y + 22.0f : y - 22.0f });
+                r = r.constrainedWithin (b.reduced (4));
+                g.setColour (col::panelHi.withAlpha (0.95f));
+                g.fillRoundedRectangle (r, 4.0f);
+                g.setColour (col::border);
+                g.drawRoundedRectangle (r, 4.0f, 1.0f);
+                g.setColour (col::text);
+                g.setFont (font (11.0f, true));
+                g.drawText (txt, r, juce::Justification::centred);
+            }
+        }
+
         float yForSpec (float db) const
         {
             const auto b = getLocalBounds().toFloat();
