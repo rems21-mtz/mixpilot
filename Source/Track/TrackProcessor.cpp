@@ -41,6 +41,7 @@ AudioProcessorValueTreeState::ParameterLayout TrackProcessor::createLayout()
         l.add (std::make_unique<AudioParameterFloat> (ParameterID { "eqShift" + String (b), 2 }, "EQ freq " + hz,
                                                       NormalisableRange<float> (-mp::kMaxBandShiftOct, mp::kMaxBandShiftOct, 0.001f), 0.0f, oct));
     }
+    mp::ProEQ::addParameters (l, 3);
     return l;
 }
 
@@ -54,6 +55,7 @@ TrackProcessor::TrackProcessor()
     vLp1.setType (dsp::LinkwitzRileyFilterType::lowpass);  vHp1.setType (dsp::LinkwitzRileyFilterType::highpass);
     vLp2.setType (dsp::LinkwitzRileyFilterType::lowpass);  vHp2.setType (dsp::LinkwitzRileyFilterType::highpass);
     vAp2.setType (dsp::LinkwitzRileyFilterType::allpass);
+    proEq.attach (apvts);
     slot = mp::claimSlot (instanceId);
     lastListenRequest = mp::bus().listenRequest.load();
     startTimerHz (30);
@@ -76,6 +78,7 @@ void TrackProcessor::prepareToPlay (double sr, int block)
     currentSR = sr;
     const int nCh = jlimit (1, 2, getTotalNumOutputChannels());
     eq.prepare (sr);
+    proEq.prepare (sr);
     comp.prepare (sr);
     dsp::ProcessSpec spec { sr, (uint32) jmax (block, 32), (uint32) nCh };
     for (auto* f : { &duckLp, &duckHp }) { f->prepare (spec); f->setCutoffFrequency (180.0f); }
@@ -163,6 +166,7 @@ void TrackProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
 
     // 1) Coupe-bas + EQ
     eq.process (buffer);
+    proEq.process (buffer);
 
     // 2) Compression
     if (compActive.load() && param ("compOn") > 0.5f)
@@ -245,6 +249,7 @@ void TrackProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
     if (trimGain.isSmoothing() || std::abs (trimGain.getTargetValue() - 1.0f) > 1e-5f)
         for (int i = 0; i < n; ++i) { const float g = trimGain.getNextValue(); for (int c = 0; c < nCh; ++c) ch[c][i] *= g; }
 
+    proEq.listen (buffer);
     outMeter.process (ch, nCh, n);
     outAnalyzer.push (ch, nCh, n);
 }

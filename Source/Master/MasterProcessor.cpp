@@ -85,6 +85,7 @@ AudioProcessorValueTreeState::ParameterLayout MasterProcessor::createLayout()
     l.add (std::make_unique<AudioParameterFloat>  (ParameterID { "masterShare", 1 }, "Split (Master share)", NormalisableRange<float> (0, 1), 0.5f,
                AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int)
                { return "Tracks " + String (roundToInt ((1 - v) * 100)) + " % / Master " + String (roundToInt (v * 100)) + " %"; })));
+    mp::ProEQ::addParameters (l, 3);
     return l;
 }
 
@@ -98,6 +99,7 @@ MasterProcessor::MasterProcessor()
     lp2.setType (dsp::LinkwitzRileyFilterType::lowpass);  hp2.setType (dsp::LinkwitzRileyFilterType::highpass);
     ap2.setType (dsp::LinkwitzRileyFilterType::allpass);
     for (auto* c : { &compLow, &compMid, &compHigh }) c->setRms (true);
+    proEq.attach (apvts);
     for (int b = 0; b < mp::kBands; ++b)
     {
         eqGainParams[b]  = apvts.getRawParameterValue ("eq" + String (b));
@@ -135,6 +137,7 @@ void MasterProcessor::prepareToPlay (double sr, int block)
     const int nCh = jlimit (1, 2, getTotalNumOutputChannels());
 
     eq.prepare (sr);
+    proEq.prepare (sr);
     dsp::ProcessSpec spec { sr, (uint32) maxBlock, (uint32) nCh };
     for (auto* f : { &lp1, &hp1 }) { f->prepare (spec); f->setCutoffFrequency (120.0f); }
     for (auto* f : { &lp2, &hp2, &ap2 }) { f->prepare (spec); f->setCutoffFrequency (2500.0f); }
@@ -244,6 +247,7 @@ void MasterProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
         mp::configureOctaveEQ (eq, 0, g, eqOn, shift);
         eq.setBand (10, mp::BiquadCoeffs::HighShelf, 12000.0f, 0.7f, param ("highTame"), eqOn);
         eq.process (buffer);
+        proEq.process (buffer);
 
         // 2) Glue multibande -----------------------------------------------------
         const float glue = param ("glue");
@@ -344,6 +348,8 @@ void MasterProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
         safetyLimiter.setCeiling (maxOn ? param ("ceiling") - safetyMargin (outIdx) : 24.0f);
         safetyLimiter.process (buffer.getArrayOfWritePointers(), n, levelBuf.data());
     }
+
+    if (! bypass && ! cmp) proEq.listen (buffer);
 
     // Mesures de la sortie traitée
     {

@@ -2,6 +2,7 @@
 
 #include "TrackProcessor.h"
 #include "../Shared/UI.h"
+#include "../Shared/ProEqPanel.h"
 
 struct TrackHelpZone : public juce::Component, public juce::SettableTooltipClient
 {
@@ -38,6 +39,7 @@ private:
     juce::TextButton listenBtn, bypassBtn { "BYPASS" }, followBtn, helpBtn;
     juce::TextButton gainOn { "GAIN" }, eqOn { "EQ" }, compOn { "COMPRESSION" }, duckOn { "SPACE" };
     mp::ui::SpectrumView spectrum;
+    std::unique_ptr<mp::ui::BandPanel> bandPanel;
     mp::ui::TipsBar tipsBar;
     std::unique_ptr<mp::ui::HelpOverlay> help;
 

@@ -37,6 +37,16 @@ namespace
                  "The display is tilted so that a balanced mix looks roughly flat.\n"
                  "Each EQ band has a point on the green curve: drag it up/down for gain, left/right for frequency (Shift = fine). "
                  "Edited points turn orange. Double-click a point to return it to the Assistant's value, right-click to reset all bands.") },
+            { u ("Free EQ bands"),
+              u ("Double-click anywhere on the spectrum to add your own EQ band (up to 12), on top of the analysis. Each band has its colour and number.\n"
+                 "Drag a band: left/right = frequency, up/down = gain. Mouse wheel over a band = Q (width). Shift = fine. Double-click a band = gain back to 0. "
+                 "Alt-click or Delete = remove it. Right-click a band for its type (bell, shelves, low/high cut with slope, notch), channel (Stereo, Mid, Side, Left, Right), "
+                 "dynamic EQ, solo listening and more.\n"
+                 "Click a band to open its panel: power, note of the frequency, FREQ/GAIN/Q knobs, DYN (dynamic EQ: THRESH, RANGE, RATIO, ATTACK, RELEASE) and SOLO to hear only its zone.\n"
+                 "The white curve is the total EQ (analysis + your bands).") },
+            { u ("Analyzer"),
+              u ("Buttons at the top right of the spectrum: PRE (before processing), POST (after), BOTH, DELTA (what the processing changes, after minus before). "
+                 "FREEZE holds the current spectrum. PIANO shows a keyboard under the spectrum, with the note of the selected band lit up.") },
             { u ("Loudness"),
               u ("INTEGRATED LUFS: average perceived loudness since the last RESET (the value Spotify, YouTube… measure).\n"
                  "Short term: loudness of the last 3 seconds. True peak: the real peak, including between samples.\n"
@@ -282,7 +292,8 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     spectrum.showTarget = true;
     spectrum.caption = u ("INPUT (grey) · OUTPUT (blue) · TARGET (dotted) · REFERENCE (purple) · CORRECTION (green)");
     spectrum.setTooltip (u ("Mix spectrum. Grey = input, blue = output, dotted = target, purple = reference, green = Master EQ correction. "
-                            "Drag the EQ points to adjust them (Shift = fine, double-click = back to the Assistant, right-click = reset)."));
+                            "Drag the EQ points to adjust them (Shift = fine, double-click = back to the Assistant). "
+                            "Double-click an empty spot to add your own EQ band, right-click for more."));
 
     // Points d'EQ éditables : ce sont les mêmes paramètres que les curseurs de la section EQ
     spectrum.pointMinDb = -6.0f;
@@ -323,6 +334,20 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     {
         for (int b = 0; b < mp::kBands; ++b) { setParam ("eq" + String (b), proc.getAnalysisBandGainDb (b)); setParam ("eqShift" + String (b), 0.0f); }
     };
+    // EQ libre : bandes ajoutées par double-clic, panneau de la bande sélectionnée
+    spectrum.pro = &proc.proModel;
+    bandPanel = std::make_unique<BandPanel> (proc.apvts, proc.proModel);
+    spectrum.addChildComponent (*bandPanel);
+    spectrum.bandPanel = bandPanel.get();
+    spectrum.onSelectBand = [this] (int k) { bandPanel->showBand (k); };
+    bandPanel->onSelect   = [this] (int k) { spectrum.select (k); };
+    spectrum.anaMode = (int) proc.apvts.state.getProperty ("anaMode", (int) SpectrumView::AnaBoth);
+    spectrum.piano   = (bool) proc.apvts.state.getProperty ("piano", false);
+    spectrum.onViewChanged = [this]
+    {
+        proc.apvts.state.setProperty ("anaMode", spectrum.anaMode, nullptr);
+        proc.apvts.state.setProperty ("piano", spectrum.piano, nullptr);
+    };
     addAndMakeVisible (spectrum);
 
     help = std::make_unique<HelpOverlay> (u ("MixPilot Master guide"), masterHelp());
@@ -336,7 +361,7 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     review = std::make_unique<ReviewOverlay>();
     addChildComponent (*review);
 
-    setSize (1040, 764);
+    setSize (1040, 864);
     startTimerHz (30);
 }
 
@@ -385,8 +410,7 @@ void MasterEditor::filesDropped (const StringArray& files, int, int)
 void MasterEditor::timerCallback()
 {
     auto ref = proc.getReference();
-    spectrum.specIn  = proc.inAnalyzer.getDisplayDb();
-    spectrum.specOut = proc.outAnalyzer.getDisplayDb();
+    spectrum.setSpectra (proc.inAnalyzer.getDisplayDb(), proc.outAnalyzer.getDisplayDb());
     spectrum.sampleRate = proc.getCurrentSampleRate();
     spectrum.showRef = ref != nullptr;
     if (ref != nullptr) spectrum.refBands = ref->learn.bandsDb;
@@ -670,7 +694,7 @@ void MasterEditor::resized()
     tipsBar.setBounds (tipsArea);
     statusZone.setBounds (statusArea);
 
-    const int top = 138, specH = 230;
+    const int top = 138, specH = 330;
     spectrum.setBounds (16, top, 744, specH);
     loudArea = { 776, top, 248, specH };
     loudZone.setBounds (loudArea);
