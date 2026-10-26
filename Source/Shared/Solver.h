@@ -202,7 +202,7 @@ namespace mp
             // largeur ajustée vers l'image stéréo de la référence, ou celle typique du style
             const float wanted = target.refSideRatio >= 0 ? target.refSideRatio : gp.sideTarget;
             const float w = std::sqrt (std::max (wanted, 1e-6f) / mixSideRatio);
-            m.width = 1.0f + (juce::jlimit (0.7f, 1.5f, w) - 1.0f) * amount;
+            m.width = 1.0f + (juce::jlimit (0.7f, 1.25f, w) - 1.0f) * amount;   // au-delà, les aigus deviennent durs
         }
         // écrêtage doux : surtout utile quand on vise fort (sorties non normalisées)
         m.clip = gp.clip * (outputIsNormalised (output) ? 0.5f : 1.0f) * juce::jmin (1.0f, amount / 0.8f);

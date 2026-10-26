@@ -255,8 +255,9 @@ void MasterProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
         {
             const float ref = glueRefLufs.load();
             compLow.setParams  (ref + 1.0f - 7.0f * glue, 1.0f + 2.0f * glue, 30, 200, 8);
-            compMid.setParams  (ref - 2.0f - 7.0f * glue, 1.0f + 1.6f * glue, 15, 150, 8);
-            compHigh.setParams (ref - 7.0f - 7.0f * glue, 1.0f + 1.3f * glue,  8, 100, 8);
+            // attaques lentes sur les médiums et les aigus : les transitoires et l'air passent
+            compMid.setParams  (ref - 2.0f - 7.0f * glue, 1.0f + 1.6f * glue, 25, 150, 8);
+            compHigh.setParams (ref - 4.0f - 5.0f * glue, 1.0f + 1.0f * glue, 20, 120, 8);
             bandLow.setSize (nCh, n, false, false, true); bandMid.setSize (nCh, n, false, false, true); bandHigh.setSize (nCh, n, false, false, true);
             for (int c = 0; c < nCh; ++c)
             {

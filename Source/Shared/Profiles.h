@@ -40,14 +40,14 @@ namespace mp
     inline const GenreProfile& genreProfile (int g)
     {
         static const GenreProfile p[NumGenres] = {
-            { "Electro (House / Techno)", { 4, 6, 3, 0, -1, -2, -3, -4, -6, -10 }, 0.55f, 1.15f, 0.25f,  60.0f, 1.20f, 0.70f, 0.14f },
+            { "Electro (House / Techno)", { 3, 5, 2,-1, -1, -2, -3, -4, -5, -8.5f }, 0.45f, 1.10f, 0.25f,  80.0f, 1.20f, 0.50f, 0.14f },
             // Trap : sub-basse 808 très présente, charleys brillants, voix devant
-            { "Trap",                     { 7, 7, 2,-1, -1, -2, -2, -3, -4,  -8 }, 0.50f, 1.10f, 0.30f,  70.0f, 1.10f, 0.65f, 0.10f },
-            { "Pop",                      { 1, 3, 2, 0, -1, -2, -2, -3, -4,  -8 }, 0.45f, 1.10f, 0.20f, 100.0f, 1.15f, 0.45f, 0.12f },
-            { "Rock / Acoustic",        {-2, 2, 2, 1,  0, -1, -2, -3, -5,  -9 }, 0.35f, 1.00f, 0.30f, 120.0f, 0.85f, 0.35f, 0.12f },
+            { "Trap",                     { 6, 6, 1,-2, -1, -2, -2, -3, -3, -6.5f }, 0.42f, 1.10f, 0.30f,  80.0f, 1.10f, 0.50f, 0.10f },
+            { "Pop",                      { 0, 2, 1,-1, -1, -2, -2, -3, -3, -6.5f }, 0.38f, 1.10f, 0.20f, 100.0f, 1.15f, 0.35f, 0.12f },
+            { "Rock / Acoustic",        {-3, 1, 1, 0,  0, -1, -2, -3, -4, -7.5f }, 0.30f, 1.00f, 0.30f, 120.0f, 0.85f, 0.30f, 0.12f },
             // Rap / Hip-hop : voix très en avant et intelligible, kick/caisse claire qui claquent,
             // basses rondes (moins de sub que la trap), bas-médiums chaleureux, image centrée
-            { "Rap / Hip-hop",            { 2, 5, 3, 1,  0, -1, -1, -2, -4,  -9 }, 0.50f, 1.00f, 0.40f,  90.0f, 1.15f, 0.50f, 0.08f },
+            { "Rap / Hip-hop",            { 1, 4, 2, 0,  0, -1, -1, -2, -3, -7.5f }, 0.42f, 1.00f, 0.40f,  90.0f, 1.15f, 0.40f, 0.08f },
         };
         return p[g < 0 || g >= NumGenres ? Pop : g];
     }
