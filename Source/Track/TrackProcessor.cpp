@@ -624,7 +624,7 @@ TrackProcessor::EqEdits TrackProcessor::currentEdits() const
 }
 
 //==============================================================================
-AudioProcessorEditor* TrackProcessor::createEditor() { return new TrackEditor (*this); }
+AudioProcessorEditor* TrackProcessor::createEditor() { return new TrackEditor (*this, "trackScale"); }
 
 void TrackProcessor::getStateInformation (MemoryBlock& dest)
 {

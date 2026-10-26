@@ -76,7 +76,7 @@ namespace
     }
 }
 
-TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (p)
+TrackView::TrackView (TrackProcessor& p) : proc (p)
 {
     setLookAndFeel (&look);
     auto& vts = proc.apvts;
@@ -214,13 +214,13 @@ TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (
     startTimerHz (30);
 }
 
-TrackEditor::~TrackEditor()
+TrackView::~TrackView()
 {
     stopTimer();
     setLookAndFeel (nullptr);
 }
 
-void TrackEditor::timerCallback()
+void TrackView::timerCallback()
 {
     spectrum.setSpectra (proc.inAnalyzer.getDisplayDb(), proc.outAnalyzer.getDisplayDb());
     spectrum.sampleRate = proc.getCurrentSampleRate();
@@ -244,7 +244,7 @@ void TrackEditor::timerCallback()
 }
 
 //==============================================================================
-void TrackEditor::paint (Graphics& g)
+void TrackView::paint (Graphics& g)
 {
     g.fillAll (col::bg);
 
@@ -293,7 +293,7 @@ void TrackEditor::paint (Graphics& g)
     for (int i = 0; i < 5; ++i) drawCard (g, i);
 }
 
-void TrackEditor::drawDetection (Graphics& g, Rectangle<int> area)
+void TrackView::drawDetection (Graphics& g, Rectangle<int> area)
 {
     drawPanel (g, area);
     auto r = area.reduced (14, 10);
@@ -334,7 +334,7 @@ void TrackEditor::drawDetection (Graphics& g, Rectangle<int> area)
     }
 }
 
-void TrackEditor::drawCard (Graphics& g, int i)
+void TrackView::drawCard (Graphics& g, int i)
 {
     auto area = cards[i];
     drawPanel (g, area);
@@ -499,7 +499,7 @@ void TrackEditor::drawCard (Graphics& g, int i)
 }
 
 //==============================================================================
-void TrackEditor::resized()
+void TrackView::resized()
 {
     linkArea = { 200, 11, 176, 34 };
     linkZone.setBounds (linkArea);
