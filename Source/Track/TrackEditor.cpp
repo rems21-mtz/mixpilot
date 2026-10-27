@@ -40,6 +40,16 @@ namespace
                  "After listening, each EQ band gets a point on the curve: drag it up/down for gain, left/right for frequency. Hold Shift for fine moves. "
                  "Edited points turn orange; your edits stay on top of the analysis, even when it updates. "
                  "Double-click a point to return it to the analysis, right-click to reset all edits.") },
+            { u ("Free EQ bands"),
+              u ("Double-click anywhere on the spectrum to add your own EQ band (up to 12), on top of the analysis. Each band has its colour and number.\n"
+                 "Drag a band: left/right = frequency, up/down = gain. Mouse wheel over a band = Q (width). Shift = fine. Double-click a band = gain back to 0. "
+                 "Alt-click or Delete = remove it. Right-click a band for its type (bell, shelves, low/high cut with slope, notch), channel (Stereo, Mid, Side, Left, Right), "
+                 "dynamic EQ, solo listening and more.\n"
+                 "Click a band to open its panel: power, note of the frequency, FREQ/GAIN/Q knobs, DYN (dynamic EQ: THRESH, RANGE, RATIO, ATTACK, RELEASE) and SOLO to hear only its zone.\n"
+                 "The white curve is the total EQ (analysis + your bands).") },
+            { u ("Analyzer"),
+              u ("Buttons at the top right of the spectrum: PRE (before processing), POST (after), BOTH, DELTA (what the processing changes, after minus before). "
+                 "FREEZE holds the current spectrum. PIANO shows a keyboard under the spectrum, with the note of the selected band lit up.") },
             { u ("Gain"),
               u ("Sets the track at the right level in the mix, according to instrument, style and output (e.g. vocal further forward in Pop, louder kick in Electro and Club). "
                  "Gain is checked after EQ and compression to land right.") },
@@ -66,7 +76,7 @@ namespace
     }
 }
 
-TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (p)
+TrackView::TrackView (TrackProcessor& p) : proc (p)
 {
     setLookAndFeel (&look);
     auto& vts = proc.apvts;
@@ -146,7 +156,8 @@ TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (
     spectrum.eqCurve = [this] (float f) { return proc.eqResponseDb (f); };
     spectrum.caption = u ("BEFORE (grey) · AFTER (blue) · IDEAL SHAPE (dotted) · CORRECTION (green)");
     spectrum.setTooltip (u ("Grey = before MixPilot, blue = after, dotted = the instrument's ideal shape, green = applied EQ curve. "
-                            "After listening, drag the EQ points to adjust them (Shift = fine, double-click = back to the analysis, right-click = reset)."));
+                            "After listening, drag the EQ points to adjust them (Shift = fine, double-click = back to the analysis). "
+                            "Double-click an empty spot to add your own EQ band, right-click for more."));
 
     // Points d'EQ éditables après l'analyse : la retouche s'ajoute à la correction calculée
     spectrum.eqPoints = [this]
@@ -180,25 +191,38 @@ TrackEditor::TrackEditor (TrackProcessor& p) : AudioProcessorEditor (&p), proc (
     {
         for (int b = 0; b < mp::kBands; ++b) { setParam ("eqAdj" + String (b), 0.0f); setParam ("eqShift" + String (b), 0.0f); }
     };
+    // EQ libre : bandes ajoutées par double-clic, panneau de la bande sélectionnée
+    spectrum.pro = &proc.proModel;
+    bandPanel = std::make_unique<BandPanel> (proc.apvts, proc.proModel);
+    spectrum.addChildComponent (*bandPanel);
+    spectrum.bandPanel = bandPanel.get();
+    spectrum.onSelectBand = [this] (int k) { bandPanel->showBand (k); };
+    bandPanel->onSelect   = [this] (int k) { spectrum.select (k); };
+    spectrum.anaMode = (int) proc.apvts.state.getProperty ("anaMode", (int) SpectrumView::AnaBoth);
+    spectrum.piano   = (bool) proc.apvts.state.getProperty ("piano", false);
+    spectrum.onViewChanged = [this]
+    {
+        proc.apvts.state.setProperty ("anaMode", spectrum.anaMode, nullptr);
+        proc.apvts.state.setProperty ("piano", spectrum.piano, nullptr);
+    };
     addAndMakeVisible (spectrum);
 
     help = std::make_unique<HelpOverlay> (u ("MixPilot Track guide"), trackHelp());
     addChildComponent (*help);
 
-    setSize (1000, 610);
+    setSize (1000, 710);
     startTimerHz (30);
 }
 
-TrackEditor::~TrackEditor()
+TrackView::~TrackView()
 {
     stopTimer();
     setLookAndFeel (nullptr);
 }
 
-void TrackEditor::timerCallback()
+void TrackView::timerCallback()
 {
-    spectrum.specIn  = proc.inAnalyzer.getDisplayDb();
-    spectrum.specOut = proc.outAnalyzer.getDisplayDb();
+    spectrum.setSpectra (proc.inAnalyzer.getDisplayDb(), proc.outAnalyzer.getDisplayDb());
     spectrum.sampleRate = proc.getCurrentSampleRate();
     spectrum.showTarget = proc.hasProfile();
     spectrum.target = mp::instrumentProfile (proc.getResolvedInstrument()).shape;
@@ -220,7 +244,7 @@ void TrackEditor::timerCallback()
 }
 
 //==============================================================================
-void TrackEditor::paint (Graphics& g)
+void TrackView::paint (Graphics& g)
 {
     g.fillAll (col::bg);
 
@@ -269,7 +293,7 @@ void TrackEditor::paint (Graphics& g)
     for (int i = 0; i < 5; ++i) drawCard (g, i);
 }
 
-void TrackEditor::drawDetection (Graphics& g, Rectangle<int> area)
+void TrackView::drawDetection (Graphics& g, Rectangle<int> area)
 {
     drawPanel (g, area);
     auto r = area.reduced (14, 10);
@@ -310,7 +334,7 @@ void TrackEditor::drawDetection (Graphics& g, Rectangle<int> area)
     }
 }
 
-void TrackEditor::drawCard (Graphics& g, int i)
+void TrackView::drawCard (Graphics& g, int i)
 {
     auto area = cards[i];
     drawPanel (g, area);
@@ -475,7 +499,7 @@ void TrackEditor::drawCard (Graphics& g, int i)
 }
 
 //==============================================================================
-void TrackEditor::resized()
+void TrackView::resized()
 {
     linkArea = { 200, 11, 176, 34 };
     linkZone.setBounds (linkArea);
@@ -492,7 +516,7 @@ void TrackEditor::resized()
 
     tipsBar.setBounds (16, 100, getWidth() - 32, 30);
 
-    const int top = 138, h = 236;
+    const int top = 138, h = 336;
     spectrum.setBounds (16, top, 680, h);
     detectArea = { 706, top, getWidth() - 706 - 16, h };
     detectZone.setBounds (detectArea);

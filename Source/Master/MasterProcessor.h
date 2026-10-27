@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "../Shared/ProEQ.h"
 #include <juce_dsp/juce_dsp.h>
 #include "../Shared/DSP.h"
 #include "../Shared/Analysis.h"
@@ -39,6 +40,8 @@ public:
 
     // -------------------------------------------------------------------------
     juce::AudioProcessorValueTreeState apvts;
+    mp::ProEQ proEq;                       // bandes ajoutées à la main
+    mp::ProEqParams proModel { apvts, proEq };
 
     mp::SpectrumAnalyzer inAnalyzer, outAnalyzer;
     mp::LoudnessMeter    inMeter, outMeter;

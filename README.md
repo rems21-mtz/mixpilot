@@ -87,6 +87,8 @@ Sur chaque piste, **FOLLOW MASTER** permet de refuser ces corrections.
 - **Nettoyage** : coupe-bas adapté (par exemple 90 Hz sur une voix, 300 Hz sur un charley).
 - **EQ** : rapproche le spectre de la forme idéale de l'instrument (courbe verte).
 - **EQ éditable** : après l'analyse, chaque bande a un point sur la courbe verte. On le glisse à la souris (haut/bas = gain, gauche/droite = fréquence, Maj = réglage fin). La retouche s'ajoute à la correction calculée et reste en place quand elle se met à jour. Double-clic : retour à l'analyse, clic droit : tout réinitialiser. Même chose sur le spectre de MixPilot Master, où les points pilotent les curseurs de la section EQ.
+- **Bandes d'EQ libres** (Track et Master) : double-clic sur le spectre pour ajouter jusqu'à 12 bandes colorées par-dessus l'analyse. Types cloche, shelf bas/haut, coupe-bas/haut (12 à 48 dB/oct) et notch ; canal Stéréo, Mid, Side, Gauche ou Droite ; EQ dynamique (seuil, plage, ratio, attaque, relâchement) ; écoute en solo de la zone d'une bande. Molette = Q, Alt-clic ou Suppr = supprimer, clic droit = menu. Un clic ouvre le panneau de la bande (note la plus proche, réglages).
+- **Analyseur** : PRE, POST, BOTH, DELTA (ce que le traitement change), FREEZE et clavier de PIANO sous le spectre.
 - **Anti-masquage** : la piste se creuse légèrement là où une piste prioritaire joue (barres orange).
 - **Compression** : ratio, attaque et relâchement adaptés à l'instrument et au style.
 - **Espace** : la basse baisse ses graves quand le kick frappe (ducking automatique, sans sidechain à câbler).

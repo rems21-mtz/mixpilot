@@ -24,7 +24,7 @@ namespace mp
     {
         double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
 
-        enum Type { Peak, LowShelf, HighShelf, HighPass, LowPass };
+        enum Type { Peak, LowShelf, HighShelf, HighPass, LowPass, Notch, BandPass };
 
         static BiquadCoeffs make (Type type, double sr, double f, double q, double gainDb)
         {
@@ -66,6 +66,14 @@ namespace mp
                 }
                 case HighPass:
                     b0 = (1 + cw) / 2; b1 = -(1 + cw); b2 = (1 + cw) / 2;
+                    a0 = 1 + alpha;    a1 = -2 * cw;   a2 = 1 - alpha;
+                    break;
+                case Notch:
+                    b0 = 1;            b1 = -2 * cw;   b2 = 1;
+                    a0 = 1 + alpha;    a1 = -2 * cw;   a2 = 1 - alpha;
+                    break;
+                case BandPass:
+                    b0 = alpha;        b1 = 0;         b2 = -alpha;
                     a0 = 1 + alpha;    a1 = -2 * cw;   a2 = 1 - alpha;
                     break;
                 case LowPass:

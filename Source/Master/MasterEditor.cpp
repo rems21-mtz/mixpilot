@@ -37,6 +37,16 @@ namespace
                  "The display is tilted so that a balanced mix looks roughly flat.\n"
                  "Each EQ band has a point on the green curve: drag it up/down for gain, left/right for frequency (Shift = fine). "
                  "Edited points turn orange. Double-click a point to return it to the Assistant's value, right-click to reset all bands.") },
+            { u ("Free EQ bands"),
+              u ("Double-click anywhere on the spectrum to add your own EQ band (up to 12), on top of the analysis. Each band has its colour and number.\n"
+                 "Drag a band: left/right = frequency, up/down = gain. Mouse wheel over a band = Q (width). Shift = fine. Double-click a band = gain back to 0. "
+                 "Alt-click or Delete = remove it. Right-click a band for its type (bell, shelves, low/high cut with slope, notch), channel (Stereo, Mid, Side, Left, Right), "
+                 "dynamic EQ, solo listening and more.\n"
+                 "Click a band to open its panel: power, note of the frequency, FREQ/GAIN/Q knobs, DYN (dynamic EQ: THRESH, RANGE, RATIO, ATTACK, RELEASE) and SOLO to hear only its zone.\n"
+                 "The white curve is the total EQ (analysis + your bands).") },
+            { u ("Analyzer"),
+              u ("Buttons at the top right of the spectrum: PRE (before processing), POST (after), BOTH, DELTA (what the processing changes, after minus before). "
+                 "FREEZE holds the current spectrum. PIANO shows a keyboard under the spectrum, with the note of the selected band lit up.") },
             { u ("Loudness"),
               u ("INTEGRATED LUFS: average perceived loudness since the last RESET (the value Spotify, YouTube… measure).\n"
                  "Short term: loudness of the last 3 seconds. True peak: the real peak, including between samples.\n"
@@ -57,7 +67,7 @@ namespace
                  "The slider sets each side's share. In the middle it's half and half. With no linked track, the Master corrects everything.\n"
                  "Tracks show their share in purple in their EQ card.") },
             { u ("EQ"),
-              u ("10 octave bands set by the Assistant to bring the mix closer to the target, plus AIR (extreme highs, useful for vinyl). Double-click: back to 0.\n"
+              u ("10 octave bands set by the Assistant to bring the mix closer to the target, plus AIR (extreme highs above 10 kHz: up for more air, down to soften, useful for vinyl). Double-click: back to 0.\n"
                  "You can also drag the points directly on the spectrum, which moves these sliders and lets you shift each band's frequency.") },
             { u ("Dynamics"),
               u ("GLUE: gentle 3-band compression that holds the mix together. Higher = denser, but less punch. GR = current gain reduction.\n"
@@ -130,7 +140,7 @@ void RefWaveform::paint (Graphics& g)
 }
 
 //==============================================================================
-MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), proc (p)
+MasterView::MasterView (MasterProcessor& p) : proc (p)
 {
     setLookAndFeel (&look);
     auto& vts = proc.apvts;
@@ -260,7 +270,7 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
         s.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
         s.setColour (Slider::trackColourId, i == mp::kBands ? col::warn : col::accent2);
         s.setPopupDisplayEnabled (true, true, this);
-        s.setTooltip (i == mp::kBands ? u ("AIR: softens the extreme highs (above 12 kHz). Useful for vinyl or a harsh mix.")
+        s.setTooltip (i == mp::kBands ? u ("AIR: shelf on the extreme highs (above 10 kHz). Up = more air and sparkle, down = softer (useful for vinyl or a harsh mix).")
                                       : u ("Band ") + eqLabels[i] + u (" Hz. Boost (+) or cut (−) this frequency range on the whole mix. Double-click: 0 dB."));
         addAndMakeVisible (s);
         sliderAtt.push_back (std::make_unique<SA> (vts, i < mp::kBands ? "eq" + String (i) : String ("highTame"), s));
@@ -282,7 +292,8 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     spectrum.showTarget = true;
     spectrum.caption = u ("INPUT (grey) · OUTPUT (blue) · TARGET (dotted) · REFERENCE (purple) · CORRECTION (green)");
     spectrum.setTooltip (u ("Mix spectrum. Grey = input, blue = output, dotted = target, purple = reference, green = Master EQ correction. "
-                            "Drag the EQ points to adjust them (Shift = fine, double-click = back to the Assistant, right-click = reset)."));
+                            "Drag the EQ points to adjust them (Shift = fine, double-click = back to the Assistant). "
+                            "Double-click an empty spot to add your own EQ band, right-click for more."));
 
     // Points d'EQ éditables : ce sont les mêmes paramètres que les curseurs de la section EQ
     spectrum.pointMinDb = -6.0f;
@@ -323,6 +334,20 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     {
         for (int b = 0; b < mp::kBands; ++b) { setParam ("eq" + String (b), proc.getAnalysisBandGainDb (b)); setParam ("eqShift" + String (b), 0.0f); }
     };
+    // EQ libre : bandes ajoutées par double-clic, panneau de la bande sélectionnée
+    spectrum.pro = &proc.proModel;
+    bandPanel = std::make_unique<BandPanel> (proc.apvts, proc.proModel);
+    spectrum.addChildComponent (*bandPanel);
+    spectrum.bandPanel = bandPanel.get();
+    spectrum.onSelectBand = [this] (int k) { bandPanel->showBand (k); };
+    bandPanel->onSelect   = [this] (int k) { spectrum.select (k); };
+    spectrum.anaMode = (int) proc.apvts.state.getProperty ("anaMode", (int) SpectrumView::AnaBoth);
+    spectrum.piano   = (bool) proc.apvts.state.getProperty ("piano", false);
+    spectrum.onViewChanged = [this]
+    {
+        proc.apvts.state.setProperty ("anaMode", spectrum.anaMode, nullptr);
+        proc.apvts.state.setProperty ("piano", spectrum.piano, nullptr);
+    };
     addAndMakeVisible (spectrum);
 
     help = std::make_unique<HelpOverlay> (u ("MixPilot Master guide"), masterHelp());
@@ -336,17 +361,17 @@ MasterEditor::MasterEditor (MasterProcessor& p) : AudioProcessorEditor (&p), pro
     review = std::make_unique<ReviewOverlay>();
     addChildComponent (*review);
 
-    setSize (1040, 764);
+    setSize (1040, 864);
     startTimerHz (30);
 }
 
-MasterEditor::~MasterEditor()
+MasterView::~MasterView()
 {
     stopTimer();
     setLookAndFeel (nullptr);
 }
 
-void MasterEditor::addKnob (Slider& s, const char* id, const String& tip, Colour c)
+void MasterView::addKnob (Slider& s, const char* id, const String& tip, Colour c)
 {
     setupKnob (s, c);
     s.setTooltip (tip);
@@ -354,7 +379,7 @@ void MasterEditor::addKnob (Slider& s, const char* id, const String& tip, Colour
     sliderAtt.push_back (std::make_unique<SA> (proc.apvts, id, s));
 }
 
-void MasterEditor::chooseReferenceFile()
+void MasterView::chooseReferenceFile()
 {
     chooser = std::make_unique<FileChooser> (u ("Choose a reference song"), File::getSpecialLocation (File::userMusicDirectory),
                                              "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.m4a;*.ogg");
@@ -366,14 +391,14 @@ void MasterEditor::chooseReferenceFile()
                           });
 }
 
-bool MasterEditor::isInterestedInFileDrag (const StringArray& files)
+bool MasterView::isInterestedInFileDrag (const StringArray& files)
 {
     for (auto& f : files)
         if (File (f).hasFileExtension ("wav;aif;aiff;flac;mp3;m4a;ogg")) return true;
     return false;
 }
 
-void MasterEditor::filesDropped (const StringArray& files, int, int)
+void MasterView::filesDropped (const StringArray& files, int, int)
 {
     waveform.dragHover = false;
     for (auto& f : files)
@@ -382,11 +407,10 @@ void MasterEditor::filesDropped (const StringArray& files, int, int)
 }
 
 //==============================================================================
-void MasterEditor::timerCallback()
+void MasterView::timerCallback()
 {
     auto ref = proc.getReference();
-    spectrum.specIn  = proc.inAnalyzer.getDisplayDb();
-    spectrum.specOut = proc.outAnalyzer.getDisplayDb();
+    spectrum.setSpectra (proc.inAnalyzer.getDisplayDb(), proc.outAnalyzer.getDisplayDb());
     spectrum.sampleRate = proc.getCurrentSampleRate();
     spectrum.showRef = ref != nullptr;
     if (ref != nullptr) spectrum.refBands = ref->learn.bandsDb;
@@ -421,7 +445,7 @@ void MasterEditor::timerCallback()
 }
 
 //==============================================================================
-void MasterEditor::paint (Graphics& g)
+void MasterView::paint (Graphics& g)
 {
     g.fillAll (col::bg);
 
@@ -502,13 +526,13 @@ void MasterEditor::paint (Graphics& g)
     drawCorrectionPanel (g, corrArea);
 }
 
-void MasterEditor::drawKnobTitle (Graphics& g, const Slider& s, const String& t)
+void MasterView::drawKnobTitle (Graphics& g, const Slider& s, const String& t)
 {
     g.setColour (col::textDim); g.setFont (font (10.0f, true));
     g.drawText (t, s.getX() - 10, s.getY() - 14, s.getWidth() + 20, 12, Justification::centred);
 }
 
-void MasterEditor::drawReferencePanel (Graphics& g, Rectangle<int> area)
+void MasterView::drawReferencePanel (Graphics& g, Rectangle<int> area)
 {
     drawPanel (g, area);
     auto r = area.reduced (12, 8);
@@ -535,7 +559,7 @@ void MasterEditor::drawReferencePanel (Graphics& g, Rectangle<int> area)
     }
 }
 
-void MasterEditor::drawCorrectionPanel (Graphics& g, Rectangle<int> area)
+void MasterView::drawCorrectionPanel (Graphics& g, Rectangle<int> area)
 {
     drawPanel (g, area);
     auto r = area.reduced (12, 8);
@@ -554,7 +578,7 @@ void MasterEditor::drawCorrectionPanel (Graphics& g, Rectangle<int> area)
     g.drawText (masterOnly ? (tracks.empty() ? u ("no tracks: Master only") : u ("Master only")) : u ("SPLIT"), lab, Justification::centred);
 }
 
-void MasterEditor::drawLoudnessPanel (Graphics& g, Rectangle<int> area)
+void MasterView::drawLoudnessPanel (Graphics& g, Rectangle<int> area)
 {
     drawPanel (g, area);
     auto r = area.reduced (14, 10);
@@ -617,7 +641,7 @@ void MasterEditor::drawLoudnessPanel (Graphics& g, Rectangle<int> area)
     chk (okTP && tpHold > -99, u ("No clipping (≤ ") + String (op.ceilingDb, 1) + " dBTP)");
 }
 
-void MasterEditor::drawTrackPanel (Graphics& g, Rectangle<int> area)
+void MasterView::drawTrackPanel (Graphics& g, Rectangle<int> area)
 {
     drawPanel (g, area);
     auto r = area.reduced (14, 10);
@@ -655,7 +679,7 @@ void MasterEditor::drawTrackPanel (Graphics& g, Rectangle<int> area)
 }
 
 //==============================================================================
-void MasterEditor::resized()
+void MasterView::resized()
 {
     genreBox.setBounds  (226, 18, 180, 28);
     outputBox.setBounds (414, 18, 200, 28);
@@ -670,7 +694,7 @@ void MasterEditor::resized()
     tipsBar.setBounds (tipsArea);
     statusZone.setBounds (statusArea);
 
-    const int top = 138, specH = 230;
+    const int top = 138, specH = 330;
     spectrum.setBounds (16, top, 744, specH);
     loudArea = { 776, top, 248, specH };
     loudZone.setBounds (loudArea);

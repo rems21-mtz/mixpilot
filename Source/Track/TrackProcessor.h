@@ -6,6 +6,7 @@
 #include "../Shared/Analysis.h"
 #include "../Shared/Solver.h"
 #include "../Shared/SharedBus.h"
+#include "../Shared/ProEQ.h"
 
 class TrackProcessor : public juce::AudioProcessor,
                        private juce::Timer
@@ -38,6 +39,8 @@ public:
 
     // -------------------------------------------------------------------------
     juce::AudioProcessorValueTreeState apvts;
+    mp::ProEQ proEq;                       // bandes ajoutées à la main
+    mp::ProEqParams proModel { apvts, proEq };
     mp::SpectrumAnalyzer inAnalyzer, outAnalyzer;
     mp::LoudnessMeter inMeter, outMeter;
     mp::PeakHold inputPeak;

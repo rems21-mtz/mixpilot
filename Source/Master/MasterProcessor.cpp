@@ -59,7 +59,7 @@ AudioProcessorValueTreeState::ParameterLayout MasterProcessor::createLayout()
     for (int b = 0; b < mp::kBands; ++b)
         l.add (std::make_unique<AudioParameterFloat> (ParameterID { "eqShift" + String (b), 2 }, "EQ freq " + String (mp::kBandFreqs[(size_t) b], 0) + " Hz",
                                                       NormalisableRange<float> (-mp::kMaxBandShiftOct, mp::kMaxBandShiftOct, 0.001f), 0.0f, oct));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "highTame", 1 }, "Extreme highs", NormalisableRange<float> (-6, 0, 0.01f), 0.0f, dB));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "highTame", 1 }, "Air (extreme highs)", NormalisableRange<float> (-6, 6, 0.01f), 0.0f, dB));
     l.add (std::make_unique<AudioParameterBool>  (ParameterID { "eqOn", 1 }, "EQ on", true));
 
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "glue", 1 }, "Glue", NormalisableRange<float> (0, 1), 0.4f, pc));
@@ -85,6 +85,7 @@ AudioProcessorValueTreeState::ParameterLayout MasterProcessor::createLayout()
     l.add (std::make_unique<AudioParameterFloat>  (ParameterID { "masterShare", 1 }, "Split (Master share)", NormalisableRange<float> (0, 1), 0.5f,
                AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int)
                { return "Tracks " + String (roundToInt ((1 - v) * 100)) + " % / Master " + String (roundToInt (v * 100)) + " %"; })));
+    mp::ProEQ::addParameters (l, 3);
     return l;
 }
 
@@ -98,6 +99,7 @@ MasterProcessor::MasterProcessor()
     lp2.setType (dsp::LinkwitzRileyFilterType::lowpass);  hp2.setType (dsp::LinkwitzRileyFilterType::highpass);
     ap2.setType (dsp::LinkwitzRileyFilterType::allpass);
     for (auto* c : { &compLow, &compMid, &compHigh }) c->setRms (true);
+    proEq.attach (apvts);
     for (int b = 0; b < mp::kBands; ++b)
     {
         eqGainParams[b]  = apvts.getRawParameterValue ("eq" + String (b));
@@ -135,6 +137,7 @@ void MasterProcessor::prepareToPlay (double sr, int block)
     const int nCh = jlimit (1, 2, getTotalNumOutputChannels());
 
     eq.prepare (sr);
+    proEq.prepare (sr);
     dsp::ProcessSpec spec { sr, (uint32) maxBlock, (uint32) nCh };
     for (auto* f : { &lp1, &hp1 }) { f->prepare (spec); f->setCutoffFrequency (120.0f); }
     for (auto* f : { &lp2, &hp2, &ap2 }) { f->prepare (spec); f->setCutoffFrequency (2500.0f); }
@@ -242,8 +245,9 @@ void MasterProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
             shift[(size_t) b] = eqShiftParams[b]->load();
         }
         mp::configureOctaveEQ (eq, 0, g, eqOn, shift);
-        eq.setBand (10, mp::BiquadCoeffs::HighShelf, 12000.0f, 0.7f, param ("highTame"), eqOn);
+        eq.setBand (10, mp::BiquadCoeffs::HighShelf, 10000.0f, 0.7f, param ("highTame"), eqOn);
         eq.process (buffer);
+        proEq.process (buffer);
 
         // 2) Glue multibande -----------------------------------------------------
         const float glue = param ("glue");
@@ -251,8 +255,9 @@ void MasterProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
         {
             const float ref = glueRefLufs.load();
             compLow.setParams  (ref + 1.0f - 7.0f * glue, 1.0f + 2.0f * glue, 30, 200, 8);
-            compMid.setParams  (ref - 2.0f - 7.0f * glue, 1.0f + 1.6f * glue, 15, 150, 8);
-            compHigh.setParams (ref - 7.0f - 7.0f * glue, 1.0f + 1.3f * glue,  8, 100, 8);
+            // attaques lentes sur les médiums et les aigus : les transitoires et l'air passent
+            compMid.setParams  (ref - 2.0f - 7.0f * glue, 1.0f + 1.6f * glue, 25, 150, 8);
+            compHigh.setParams (ref - 4.0f - 5.0f * glue, 1.0f + 1.0f * glue, 20, 120, 8);
             bandLow.setSize (nCh, n, false, false, true); bandMid.setSize (nCh, n, false, false, true); bandHigh.setSize (nCh, n, false, false, true);
             for (int c = 0; c < nCh; ++c)
             {
@@ -344,6 +349,8 @@ void MasterProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
         safetyLimiter.setCeiling (maxOn ? param ("ceiling") - safetyMargin (outIdx) : 24.0f);
         safetyLimiter.process (buffer.getArrayOfWritePointers(), n, levelBuf.data());
     }
+
+    if (! bypass && ! cmp) proEq.listen (buffer);
 
     // Mesures de la sortie traitée
     {
@@ -1024,7 +1031,7 @@ void MasterProcessor::timerCallback()
 }
 
 //==============================================================================
-AudioProcessorEditor* MasterProcessor::createEditor() { return new MasterEditor (*this); }
+AudioProcessorEditor* MasterProcessor::createEditor() { return new MasterEditor (*this, "masterScale"); }
 
 void MasterProcessor::getStateInformation (MemoryBlock& dest)
 {

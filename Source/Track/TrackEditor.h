@@ -2,18 +2,20 @@
 
 #include "TrackProcessor.h"
 #include "../Shared/UI.h"
+#include "../Shared/ProEqPanel.h"
+#include "../Shared/ScaledEditor.h"
 
 struct TrackHelpZone : public juce::Component, public juce::SettableTooltipClient
 {
     TrackHelpZone() { setInterceptsMouseClicks (true, false); }
 };
 
-class TrackEditor : public juce::AudioProcessorEditor,
+class TrackView : public juce::Component,
                     private juce::Timer
 {
 public:
-    explicit TrackEditor (TrackProcessor&);
-    ~TrackEditor() override;
+    explicit TrackView (TrackProcessor&);
+    ~TrackView() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -38,6 +40,7 @@ private:
     juce::TextButton listenBtn, bypassBtn { "BYPASS" }, followBtn, helpBtn;
     juce::TextButton gainOn { "GAIN" }, eqOn { "EQ" }, compOn { "COMPRESSION" }, duckOn { "SPACE" };
     mp::ui::SpectrumView spectrum;
+    std::unique_ptr<mp::ui::BandPanel> bandPanel;
     mp::ui::TipsBar tipsBar;
     std::unique_ptr<mp::ui::HelpOverlay> help;
 
@@ -48,5 +51,7 @@ private:
     juce::Rectangle<int> statusArea, detectArea, linkArea, cards[5];
     float outShort = -70, compGr = 0, duckGr = 0, vDuckGr = 0;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackView)
 };
+
+using TrackEditor = mp::ui::ScaledEditor<TrackView, TrackProcessor>;

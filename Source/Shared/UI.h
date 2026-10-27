@@ -8,6 +8,7 @@
 #include <functional>
 #include "Profiles.h"
 #include "Review.h"
+#include "ProEqModel.h"
 
 namespace mp::ui
 {
@@ -164,15 +165,34 @@ namespace mp::ui
     }
 
     // -------------------------------------------------------------------------
-    //  Analyseur de spectre (log 20 Hz – 20 kHz) + courbes
+    //  Couleur de chaque bande de l'EQ libre
+    // -------------------------------------------------------------------------
+    inline juce::Colour proBandColour (int k)
+    {
+        static const juce::uint32 c[] = { 0xffffc93f, 0xffe04ad8, 0xffff9f43, 0xffff4d6d, 0xff3fd0ff, 0xff5fe08a,
+                                          0xff7c8cff, 0xffb48cff, 0xfff2ea6b, 0xff4dffd2, 0xffff7ab8, 0xff9be15d };
+        return juce::Colour (c[(size_t) (((k % 12) + 12) % 12)]);
+    }
+
+    inline juce::String freqText (float f)
+    {
+        return f >= 1000.0f ? juce::String (f / 1000.0f, f >= 10000.0f ? 1 : 2) + " kHz" : juce::String (juce::roundToInt (f)) + " Hz";
+    }
+
+    // -------------------------------------------------------------------------
+    //  Analyseur de spectre (log 20 Hz – 20 kHz) + courbes + EQ libre
     // -------------------------------------------------------------------------
     class SpectrumView : public juce::Component, public juce::SettableTooltipClient
     {
     public:
+        enum AnaMode { AnaPre, AnaPost, AnaBoth, AnaDelta };
+
+        SpectrumView() { setWantsKeyboardFocus (true); }
+
         std::vector<float> specIn, specOut;     // dB par bin FFT
         double sampleRate = 48000.0;
         int fftSize = 2048;
-        std::function<float (float)> eqCurve;   // dB de correction
+        std::function<float (float)> eqCurve;   // dB de correction (analyse)
         bool showTarget = false;
         Bands target {};                         // forme cible (dB relatifs)
         Bands measured {};                       // spectre appris (dB)
@@ -181,7 +201,7 @@ namespace mp::ui
         bool showRef = false;
         juce::String caption;
 
-        // Points d'EQ déplaçables à la souris : vertical = gain, horizontal = fréquence.
+        // Points d'EQ de l'analyse déplaçables à la souris : vertical = gain, horizontal = fréquence.
         // eqPoints vide (ou non défini) = courbe en lecture seule.
         struct EqPoint { float freq = 1000.0f, gainDb = 0.0f; bool edited = false; };
         std::function<std::vector<EqPoint>()> eqPoints;
@@ -191,6 +211,31 @@ namespace mp::ui
         std::function<void()> onResetAll;
         float pointMinDb = -12.0f, pointMaxDb = 12.0f;
 
+        // EQ libre : bandes ajoutées par double-clic
+        ProEqModel* pro = nullptr;
+        juce::Component* bandPanel = nullptr;      // panneau de la bande sélectionnée (enfant, posé en bas)
+        std::function<void (int)> onSelectBand;     // -1 = aucune
+        int  getSelected() const { return selected; }
+        void select (int k)
+        {
+            selected = k;
+            if (onSelectBand) onSelectBand (k);
+            layoutPanel();
+            repaint();
+        }
+
+        // Affichage (mémorisé par le plugin via onViewChanged)
+        int  anaMode = AnaBoth;
+        bool frozen = false, piano = false;
+        std::function<void()> onViewChanged;
+        static constexpr float rangeDb = 18.0f;    // échelle des courbes d'EQ (±)
+
+        void setSpectra (std::vector<float> in, std::vector<float> out)
+        {
+            if (frozen) return;
+            specIn = std::move (in); specOut = std::move (out);
+        }
+
         float xForFreq (float f) const
         {
             const auto b = getLocalBounds().toFloat();
@@ -198,11 +243,16 @@ namespace mp::ui
         }
         float freqForX (float x) const { return 20.0f * std::pow (1000.0f, x / (float) juce::jmax (1, getWidth())); }
 
+        void resized() override { layoutPanel(); }
+
         void paint (juce::Graphics& g) override
         {
             const auto b = getLocalBounds().toFloat();
+            const auto pl = plot();
             g.setColour (col::panel);
             g.fillRoundedRectangle (b, 6.0f);
+
+            drawGlows (g);
 
             // Grille
             g.setFont (font (10.0f));
@@ -210,10 +260,10 @@ namespace mp::ui
             {
                 const float x = xForFreq (f);
                 g.setColour (col::border.withAlpha (0.6f));
-                g.drawVerticalLine ((int) x, b.getY() + 4, b.getBottom() - 14);
+                g.drawVerticalLine ((int) x, b.getY() + 4, pl.getBottom());
                 g.setColour (col::textDim);
                 g.drawText (f >= 1000 ? juce::String (f / 1000.0f, 0) + "k" : juce::String ((int) f),
-                            juce::Rectangle<float> (x - 20, b.getBottom() - 14, 40, 12), juce::Justification::centred);
+                            juce::Rectangle<float> (x - 20, pl.getBottom(), 40, 12), juce::Justification::centred);
             }
             for (int db = -80; db <= 0; db += 20)
             {
@@ -221,64 +271,181 @@ namespace mp::ui
                 g.setColour (col::border.withAlpha (0.35f));
                 g.drawHorizontalLine ((int) y, b.getX(), b.getRight());
             }
+            if (pro != nullptr)
+            {
+                g.setFont (font (9.0f));
+                for (int db : { -12, -6, 6, 12 })
+                {
+                    const float y = yForGain ((float) db);
+                    g.setColour (col::border.withAlpha (0.25f));
+                    g.drawHorizontalLine ((int) y, b.getX(), b.getRight());
+                    g.setColour (col::textDim.withAlpha (0.7f));
+                    g.drawText ((db > 0 ? "+" : "") + juce::String (db), juce::Rectangle<float> (b.getRight() - 26, y - 6, 22, 12), juce::Justification::centredRight);
+                }
+            }
 
-            drawSpectrum (g, specIn,  col::textDim.withAlpha (0.25f), true);
-            drawSpectrum (g, specOut, col::accent.withAlpha (0.9f),   false);
+            switch (anaMode)
+            {
+                case AnaPre:   drawSpectrum (g, specIn, col::textDim.withAlpha (0.35f), true); break;
+                case AnaPost:  drawSpectrum (g, specOut, col::accent.withAlpha (0.16f), true);
+                               drawSpectrum (g, specOut, col::accent.withAlpha (0.9f), false); break;
+                case AnaDelta: drawDelta (g); break;
+                default:       drawSpectrum (g, specIn,  col::textDim.withAlpha (0.25f), true);
+                               drawSpectrum (g, specOut, col::accent.withAlpha (0.9f),   false); break;
+            }
 
             if (showRef) drawBands (g, refBands, col::purple, false);
             if (showTarget) drawBands (g, target, col::warn, true);
             if (showMeasured) drawBands (g, measured, col::accent2.withAlpha (0.8f), false);
 
-            // Courbe de correction (échelle ±12 dB autour du centre)
+            // Fréquences d'affichage des courbes (une tous les 2 px)
+            std::vector<float> xs, fs;
+            for (float x = b.getX(); x <= b.getRight(); x += 2.0f) { xs.push_back (x); fs.push_back (freqForX (x)); }
+            const int n = (int) xs.size();
+            std::vector<float> sum ((size_t) n, 0.0f), tmp ((size_t) n, 0.0f);
+            bool anyPro = false;
+
+            // Bandes de l'EQ libre : chacune sa forme colorée
+            if (pro != nullptr)
+            {
+                const float mid = yForGain (0.0f);
+                for (int k = 0; k < kProBands; ++k)
+                {
+                    const auto band = pro->band (k);
+                    if (! band.on || ! band.active) continue;
+                    anyPro = true;
+                    pro->bandCurve (k, fs.data(), tmp.data(), n);
+                    juce::Path p;
+                    for (int i = 0; i < n; ++i)
+                    {
+                        sum[(size_t) i] += tmp[(size_t) i];
+                        const float y = yForGain (juce::jlimit (-rangeDb - 2, rangeDb + 2, tmp[(size_t) i]));
+                        if (i == 0) p.startNewSubPath (xs[0], y); else p.lineTo (xs[(size_t) i], y);
+                    }
+                    const auto c = proBandColour (k);
+                    juce::Path fill (p); fill.lineTo (xs.back(), mid); fill.lineTo (xs.front(), mid); fill.closeSubPath();
+                    g.setGradientFill (juce::ColourGradient (c.withAlpha (k == selected ? 0.42f : 0.28f), xForFreq (band.freq), yForGain (band.gainDb),
+                                                             c.withAlpha (0.04f), xForFreq (band.freq), mid, false));
+                    g.fillPath (fill);
+                    g.setColour (c.withAlpha (k == selected ? 0.95f : 0.7f));
+                    g.strokePath (p, juce::PathStrokeType (k == selected ? 1.6f : 1.1f));
+                }
+            }
+
+            // Courbe de correction de l'analyse
             if (eqCurve)
             {
                 juce::Path p;
-                const float mid = b.getCentreY();
-                for (float x = b.getX(); x <= b.getRight(); x += 2.0f)
+                const float mid = yForGain (0.0f);
+                for (int i = 0; i < n; ++i)
                 {
-                    const float db = juce::jlimit (-12.0f, 12.0f, eqCurve (freqForX (x)));
-                    const float y = mid - db / 12.0f * (b.getHeight() * 0.42f);
-                    if (x == b.getX()) p.startNewSubPath (x, y); else p.lineTo (x, y);
+                    const float db = eqCurve (fs[(size_t) i]);
+                    sum[(size_t) i] += db;
+                    const float y = yForGain (juce::jlimit (-rangeDb, rangeDb, db));
+                    if (i == 0) p.startNewSubPath (xs[0], y); else p.lineTo (xs[(size_t) i], y);
                 }
                 g.setColour (col::accent2.withAlpha (0.12f));
                 juce::Path fill (p); fill.lineTo (b.getRight(), mid); fill.lineTo (b.getX(), mid); fill.closeSubPath();
                 g.fillPath (fill);
-                g.setColour (col::accent2);
-                g.strokePath (p, juce::PathStrokeType (2.0f));
+                g.setColour (anyPro ? col::accent2.withAlpha (0.8f) : col::accent2);
+                g.strokePath (p, juce::PathStrokeType (anyPro ? 1.5f : 2.0f));
                 g.setColour (col::accent2.withAlpha (0.3f));
                 g.drawHorizontalLine ((int) mid, b.getX(), b.getRight());
             }
 
+            // Courbe totale (analyse + bandes ajoutées)
+            if (anyPro)
+            {
+                juce::Path p;
+                for (int i = 0; i < n; ++i)
+                {
+                    const float y = yForGain (juce::jlimit (-rangeDb - 2, rangeDb + 2, sum[(size_t) i]));
+                    if (i == 0) p.startNewSubPath (xs[0], y); else p.lineTo (xs[(size_t) i], y);
+                }
+                g.setColour (juce::Colours::white.withAlpha (0.9f));
+                g.strokePath (p, juce::PathStrokeType (2.0f));
+            }
+
+            const auto chips = chipRects();
             if (caption.isNotEmpty())
             {
                 g.setColour (col::textDim);
                 g.setFont (font (11.0f, true));
-                g.drawText (caption, b.reduced (10, 6), juce::Justification::topLeft);
+                const float right = chips.empty() ? b.getRight() - 10 : chips.front().first.getX() - 10;
+                g.drawFittedText (caption, juce::Rectangle<float> (b.getX() + 10, b.getY() + 6, right - b.getX() - 10, 14).toNearestInt(),
+                                  juce::Justification::topLeft, 1, 0.7f);
             }
 
             drawPoints (g);
+            drawProPoints (g);
+            drawChips (g, chips);
+            if (piano) drawPiano (g);
+
+            juce::String tag;
+            if (anaMode == AnaDelta) tag = "ANALYZER: DELTA (after - before)";
+            if (frozen) tag = tag.isEmpty() ? juce::String ("FROZEN") : tag + "  |  FROZEN";
+            if (pro != nullptr && pro->getSolo() >= 0) tag = (tag.isEmpty() ? juce::String() : tag + "  |  ") + "SOLO: BAND " + juce::String (pro->getSolo() + 1);
+            if (tag.isNotEmpty())
+            {
+                g.setFont (font (10.5f, true));
+                auto r = juce::Rectangle<float> (juce::GlyphArrangement::getStringWidth (g.getCurrentFont(), tag) + 20.0f, 18.0f)
+                             .withCentre ({ b.getCentreX(), b.getY() + 34.0f });
+                g.setColour (col::panelHi.withAlpha (0.92f)); g.fillRoundedRectangle (r, 4.0f);
+                g.setColour (col::warn.withAlpha (0.8f));     g.drawRoundedRectangle (r, 4.0f, 1.0f);
+                g.setColour (col::warn);                      g.drawText (tag, r, juce::Justification::centred);
+            }
         }
 
-        // ---- édition des points ---------------------------------------------
+        // ---- souris -----------------------------------------------------------
         void mouseMove (const juce::MouseEvent& e) override
         {
-            const int h = pointAt (e.position);
-            if (h != hover) { hover = h; repaint(); }
-            setMouseCursor (h >= 0 ? juce::MouseCursor::DraggingHandCursor : juce::MouseCursor::NormalCursor);
+            const int k = proAt (e.position);
+            const int h = k >= 0 ? -1 : pointAt (e.position);
+            if (h != hover || k != hoverPro) { hover = h; hoverPro = k; repaint(); }
+            setMouseCursor (h >= 0 || k >= 0 ? juce::MouseCursor::DraggingHandCursor
+                                             : (chipAt (e.position) >= 0 ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor));
         }
 
         void mouseExit (const juce::MouseEvent&) override
         {
-            if (hover >= 0 && dragging < 0) { hover = -1; repaint(); }
+            if ((hover >= 0 || hoverPro >= 0) && dragging < 0 && dragPro < 0) { hover = hoverPro = -1; repaint(); }
         }
 
         void mouseDown (const juce::MouseEvent& e) override
         {
+            if (isShowing()) grabKeyboardFocus();
+            if (const int c = chipAt (e.position); c >= 0) { clickChip (c); return; }
+
+            const int k = proAt (e.position);
+            if (e.mods.isPopupMenu())
+            {
+                if (k >= 0) { if (selected != k) select (k); showProMenu (k); }
+                else showMenu (pointAt (e.position), e.position);
+                return;
+            }
+
+            if (k >= 0)
+            {
+                if (e.mods.isAltDown()) { deleteBand (k); return; }
+                if (selected != k) select (k);
+                const auto band = pro->band (k);
+                dragPro = hoverPro = k;
+                dragStartFreq = band.freq;
+                dragStartGain = band.gainDb;
+                dragProGain = proHasGain (band.type);
+                pro->beginGesture (k, FFreq);
+                if (dragProGain) pro->beginGesture (k, FGain);
+                setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+                return;
+            }
+
             const auto pts = currentPoints();
-            if (pts.empty()) return;
-            const int i = pointAt (e.position);
-            if (e.mods.isPopupMenu()) { showMenu (i); return; }
-            if (i < 0) return;
+            const int i = pts.empty() ? -1 : pointAt (e.position);
+            if (i < 0)
+            {
+                if (selected >= 0) select (-1);
+                return;
+            }
             dragging = hover = i;
             dragStartFreq = pts[(size_t) i].freq;
             dragStartGain = pts[(size_t) i].gainDb;
@@ -288,11 +455,21 @@ namespace mp::ui
 
         void mouseDrag (const juce::MouseEvent& e) override
         {
-            if (dragging < 0 || ! onPointMoved) return;
             // Maj : réglage fin
             const float k = e.mods.isShiftDown() ? 0.25f : 1.0f;
             const auto d = e.position - e.mouseDownPosition;
             const float x = juce::jlimit (0.0f, (float) getWidth(), xForFreq (dragStartFreq) + d.x * k);
+
+            if (dragPro >= 0 && pro != nullptr)
+            {
+                pro->setField (dragPro, FFreq, juce::jlimit (20.0f, 20000.0f, freqForX (x)));
+                if (dragProGain)
+                    pro->setField (dragPro, FGain, juce::jlimit (-rangeDb, rangeDb, gainForY (yForGain (dragStartGain) + d.y * k)));
+                repaint();
+                return;
+            }
+
+            if (dragging < 0 || ! onPointMoved) return;
             const float db = juce::jlimit (pointMinDb, pointMaxDb, gainForY (yForGain (dragStartGain) + d.y * k));
             onPointMoved (dragging, freqForX (x), db);
             repaint();
@@ -300,6 +477,14 @@ namespace mp::ui
 
         void mouseUp (const juce::MouseEvent&) override
         {
+            if (dragPro >= 0 && pro != nullptr)
+            {
+                pro->endGesture (dragPro, FFreq);
+                if (dragProGain) pro->endGesture (dragPro, FGain);
+                dragPro = -1;
+                repaint();
+                return;
+            }
             if (dragging < 0) return;
             if (onPointGesture) onPointGesture (dragging, false);
             dragging = -1;
@@ -308,32 +493,78 @@ namespace mp::ui
 
         void mouseDoubleClick (const juce::MouseEvent& e) override
         {
+            if (chipAt (e.position) >= 0) return;
+            if (const int k = proAt (e.position); k >= 0)
+            {
+                if (proHasGain (pro->band (k).type)) pro->setNow (k, FGain, 0.0f);
+                repaint();
+                return;
+            }
             const int i = pointAt (e.position);
-            if (i >= 0 && onPointReset) { onPointReset (i); repaint(); }
+            if (i >= 0 && onPointReset) { onPointReset (i); repaint(); return; }
+            addBandAt (e.position, PBell);
+        }
+
+        void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
+        {
+            const int k = proAt (e.position);
+            if (k < 0 || pro == nullptr) { Component::mouseWheelMove (e, w); return; }
+            // molette = Q (Maj : réglage fin)
+            const float dir = w.isReversed ? -1.0f : 1.0f;
+            const float q = pro->band (k).q * std::exp (w.deltaY * dir * (e.mods.isShiftDown() ? 0.6f : 2.4f));
+            pro->setNow (k, FQ, juce::jlimit (0.1f, 18.0f, q));
+            repaint();
+        }
+
+        bool keyPressed (const juce::KeyPress& key) override
+        {
+            if (selected >= 0 && pro != nullptr
+                && (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey))
+            {
+                deleteBand (selected);
+                return true;
+            }
+            return false;
         }
 
         juce::String getTooltip() override
         {
             // pas d'infobulle pendant qu'on manipule un point : l'étiquette du point suffit
-            return hover >= 0 || dragging >= 0 ? juce::String() : SettableTooltipClient::getTooltip();
+            return hover >= 0 || dragging >= 0 || hoverPro >= 0 || dragPro >= 0 ? juce::String() : SettableTooltipClient::getTooltip();
         }
 
     private:
-        int hover = -1, dragging = -1;
+        int hover = -1, dragging = -1, hoverPro = -1, dragPro = -1, selected = -1;
+        bool dragProGain = false;
         float dragStartFreq = 1000.0f, dragStartGain = 0.0f;
+
+        float bottomPad() const { return piano ? 30.0f : 14.0f; }
+        juce::Rectangle<float> plot() const { return getLocalBounds().toFloat().withTrimmedBottom (bottomPad()); }
+
+        void layoutPanel()
+        {
+            if (bandPanel == nullptr) return;
+            // en bas, ou en haut si la bande sélectionnée est dans la moitié basse (pour ne pas la cacher)
+            const int w = juce::jmin (640, getWidth() - 12), h = 112;
+            const bool top = pro != nullptr && selected >= 0 && proPos (pro->band (selected)).y > plot().getCentreY();
+            bandPanel->setBounds ((getWidth() - w) / 2, top ? 26 : (int) plot().getBottom() - h - 6, w, h);
+        }
 
         std::vector<EqPoint> currentPoints() const { return eqPoints ? eqPoints() : std::vector<EqPoint> {}; }
 
+    public:
         float yForGain (float db) const
         {
-            const auto b = getLocalBounds().toFloat();
-            return b.getCentreY() - db / 12.0f * (b.getHeight() * 0.42f);
+            const auto b = plot();
+            return b.getCentreY() - db / rangeDb * (b.getHeight() * 0.44f);
         }
         float gainForY (float y) const
         {
-            const auto b = getLocalBounds().toFloat();
-            return (b.getCentreY() - y) / juce::jmax (1.0f, b.getHeight() * 0.42f) * 12.0f;
+            const auto b = plot();
+            return (b.getCentreY() - y) / juce::jmax (1.0f, b.getHeight() * 0.44f) * rangeDb;
         }
+
+    private:
 
         int pointAt (juce::Point<float> p) const
         {
@@ -341,30 +572,176 @@ namespace mp::ui
             int best = -1; float bestD = 11.0f;
             for (size_t i = 0; i < pts.size(); ++i)
             {
-                const float d = p.getDistanceFrom ({ xForFreq (pts[i].freq), yForGain (pts[i].gainDb) });
+                const float d = p.getDistanceFrom ({ xForFreq (pts[i].freq), yForGain (juce::jlimit (-rangeDb, rangeDb, pts[i].gainDb)) });
                 if (d < bestD) { bestD = d; best = (int) i; }
             }
             return best;
         }
 
-        void showMenu (int i)
+        juce::Point<float> proPos (const ProBand& b) const
+        {
+            return { xForFreq (b.freq), yForGain (proHasGain (b.type) ? juce::jlimit (-rangeDb, rangeDb, b.gainDb) : 0.0f) };
+        }
+
+        int proAt (juce::Point<float> p) const
+        {
+            if (pro == nullptr) return -1;
+            int best = -1; float bestD = 11.0f;
+            for (int k = 0; k < kProBands; ++k)
+            {
+                const auto b = pro->band (k);
+                if (! b.on) continue;
+                const float d = p.getDistanceFrom (proPos (b));
+                if (d < bestD) { bestD = d; best = k; }
+            }
+            return best;
+        }
+
+        void addBandAt (juce::Point<float> p, int type)
+        {
+            if (pro == nullptr) return;
+            const int k = pro->createBand (juce::jlimit (20.0f, 20000.0f, freqForX (p.x)),
+                                           juce::jlimit (-rangeDb, rangeDb, gainForY (p.y)), type);
+            if (k >= 0) select (k);
+            repaint();
+        }
+
+        void deleteBand (int k)
+        {
+            pro->deleteBand (k);
+            hoverPro = -1;
+            if (selected == k) select (-1);
+            repaint();
+        }
+
+        // ---- boutons de l'analyseur (en haut à droite) ------------------------
+        std::vector<std::pair<juce::Rectangle<float>, int>> chipRects() const
+        {
+            static const std::pair<const char*, int> items[] = { { "PRE", 0 }, { "POST", 1 }, { "BOTH", 2 }, { "DELTA", 3 }, { "FREEZE", 10 }, { "PIANO", 11 } };
+            static const float widths[] = { 36, 40, 42, 46, 52, 46 };
+            float total = 8;
+            for (auto w : widths) total += w + 3;
+            float x = (float) getWidth() - total;
+            std::vector<std::pair<juce::Rectangle<float>, int>> r;
+            for (size_t i = 0; i < 6; ++i)
+            {
+                if (items[i].second == 10) x += 8;
+                r.push_back ({ { x, 5.0f, widths[i], 17.0f }, items[i].second });
+                x += widths[i] + 3;
+            }
+            return r;
+        }
+
+        int chipAt (juce::Point<float> p) const
+        {
+            for (auto& c : chipRects()) if (c.first.contains (p)) return c.second;
+            return -1;
+        }
+
+        void clickChip (int id)
+        {
+            if (id < 10) anaMode = id;
+            if (id == 10) frozen = ! frozen;
+            if (id == 11) { piano = ! piano; layoutPanel(); }
+            if (onViewChanged) onViewChanged();
+            repaint();
+        }
+
+        void drawChips (juce::Graphics& g, const std::vector<std::pair<juce::Rectangle<float>, int>>& chips)
+        {
+            static const char* labels[] = { "PRE", "POST", "BOTH", "DELTA" };
+            g.setFont (font (9.5f, true));
+            for (auto& [r, id] : chips)
+            {
+                const bool on = id < 10 ? anaMode == id : (id == 10 ? frozen : piano);
+                g.setColour (on ? col::accent.withAlpha (0.85f) : col::panelHi.withAlpha (0.9f));
+                g.fillRoundedRectangle (r, 3.0f);
+                g.setColour (on ? col::accent.brighter (0.3f) : col::border);
+                g.drawRoundedRectangle (r, 3.0f, 1.0f);
+                g.setColour (on ? juce::Colours::white : col::textDim);
+                g.drawText (id < 10 ? labels[id] : (id == 10 ? "FREEZE" : "PIANO"), r, juce::Justification::centred);
+            }
+        }
+
+        // ---- menus --------------------------------------------------------------
+        void showMenu (int i, juce::Point<float> pos)
         {
             juce::PopupMenu m;
-            m.addItem (1, juce::String::fromUTF8 ("Reset this band to the analysis"), i >= 0 && onPointReset != nullptr);
-            m.addItem (2, juce::String::fromUTF8 ("Reset all EQ edits"), onResetAll != nullptr);
+            if (pro != nullptr)
+            {
+                m.addItem (10, "Add a band here (or double-click)");
+                m.addItem (11, "Add a low cut here");
+                m.addItem (12, "Add a high cut here");
+                m.addSeparator();
+            }
+            m.addItem (1, "Reset this band to the analysis", i >= 0 && onPointReset != nullptr);
+            m.addItem (2, "Reset all analysis EQ edits", onResetAll != nullptr);
+            if (pro != nullptr) m.addItem (3, "Delete all added bands", pro->anyOn());
             juce::Component::SafePointer<SpectrumView> safe (this);
-            m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition(), [safe, i] (int r)
+            m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition(), [safe, i, pos] (int r)
             {
                 if (safe == nullptr) return;
                 if (r == 1 && safe->onPointReset) safe->onPointReset (i);
                 if (r == 2 && safe->onResetAll)   safe->onResetAll();
+                if (r == 3) { for (int k = 0; k < kProBands; ++k) if (safe->pro->band (k).on) safe->pro->deleteBand (k); safe->select (-1); }
+                if (r == 10) safe->addBandAt (pos, PBell);
+                if (r == 11) safe->addBandAt (pos, PLowCut);
+                if (r == 12) safe->addBandAt (pos, PHighCut);
                 safe->repaint();
             });
         }
 
-        static juce::String freqText (float f)
+        void showProMenu (int k)
         {
-            return f >= 1000.0f ? juce::String (f / 1000.0f, f >= 10000.0f ? 1 : 2) + " kHz" : juce::String (juce::roundToInt (f)) + " Hz";
+            const auto b = pro->band (k);
+            juce::PopupMenu m, types, chans, slopes;
+            for (int t = 0; t < NumProTypes; ++t)    types.addItem (100 + t, proTypeName (t), true, b.type == t);
+            for (int c = 0; c < NumProChannels; ++c) chans.addItem (200 + c, proChannelName (c), true, b.ch == c);
+            for (int s = 0; s < 4; ++s)              slopes.addItem (300 + s, proSlopeName (s), true, b.slope == s);
+            m.addSectionHeader ("Band " + juce::String (k + 1));
+            m.addSubMenu ("Type", types);
+            m.addSubMenu ("Channel", chans);
+            if (proIsCut (b.type)) m.addSubMenu ("Slope", slopes);
+            m.addSeparator();
+            m.addItem (1, "Dynamic EQ", proHasGain (b.type), b.dyn);
+            m.addItem (2, "Listen to this band (solo)", true, pro->getSolo() == k);
+            m.addItem (3, "Invert gain", proHasGain (b.type));
+            m.addItem (4, b.active ? "Disable band" : "Enable band");
+            m.addSeparator();
+            m.addItem (5, "Delete band");
+            juce::Component::SafePointer<SpectrumView> safe (this);
+            m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition(), [safe, k, b] (int r)
+            {
+                if (safe == nullptr || r == 0) return;
+                auto* p = safe->pro;
+                if (r >= 100 && r < 100 + NumProTypes)    p->setNow (k, FType, (float) (r - 100));
+                if (r >= 200 && r < 200 + NumProChannels) p->setNow (k, FCh, (float) (r - 200));
+                if (r >= 300 && r < 304)                  p->setNow (k, FSlope, (float) (r - 300));
+                if (r == 1) p->setNow (k, FDyn, b.dyn ? 0.0f : 1.0f);
+                if (r == 2) p->setSolo (p->getSolo() == k ? -1 : k);
+                if (r == 3) p->setNow (k, FGain, -b.gainDb);
+                if (r == 4) p->setNow (k, FActive, b.active ? 0.0f : 1.0f);
+                if (r == 5) safe->deleteBand (k);
+                if (safe != nullptr) safe->select (safe->selected);   // rafraîchit le panneau
+            });
+        }
+
+        // ---- dessin -------------------------------------------------------------
+        void drawGlows (juce::Graphics& g)
+        {
+            if (pro == nullptr) return;
+            const auto pl = plot();
+            for (int k = 0; k < kProBands; ++k)
+            {
+                const auto b = pro->band (k);
+                if (! b.on || ! b.active) continue;
+                const float x = xForFreq (b.freq), w = k == selected ? 46.0f : 32.0f;
+                const auto c = proBandColour (k);
+                juce::ColourGradient grad (c.withAlpha (0.0f), x - w, 0, c.withAlpha (0.0f), x + w, 0, false);
+                grad.addColour (0.5, c.withAlpha (k == selected ? 0.20f : 0.11f));
+                g.setGradientFill (grad);
+                g.fillRect (juce::Rectangle<float> (x - w, pl.getY() + 2, w * 2, pl.getHeight() - 2));
+            }
         }
 
         void drawPoints (juce::Graphics& g)
@@ -374,9 +751,9 @@ namespace mp::ui
             const int active = dragging >= 0 ? dragging : hover;
             for (size_t i = 0; i < pts.size(); ++i)
             {
-                const juce::Point<float> c { xForFreq (pts[i].freq), yForGain (juce::jlimit (-12.0f, 12.0f, pts[i].gainDb)) };
+                const juce::Point<float> c { xForFreq (pts[i].freq), yForGain (juce::jlimit (-rangeDb, rangeDb, pts[i].gainDb)) };
                 const bool hot = (int) i == active;
-                const float r = hot ? 6.5f : 5.0f;
+                const float r = hot ? 6.0f : 4.5f;
                 g.setColour (col::panel);
                 g.fillEllipse (juce::Rectangle<float> (r * 2 + 3, r * 2 + 3).withCentre (c));
                 g.setColour (pts[i].edited ? col::warn : col::accent2);
@@ -386,31 +763,135 @@ namespace mp::ui
             if (active >= 0 && active < (int) pts.size())
             {
                 const auto& p = pts[(size_t) active];
-                const juce::String txt = freqText (p.freq) + "   " + (p.gainDb >= 0 ? "+" : "") + juce::String (p.gainDb, 1) + " dB";
-                const auto b = getLocalBounds().toFloat();
-                const float x = xForFreq (p.freq), y = yForGain (juce::jlimit (-12.0f, 12.0f, p.gainDb));
-                auto r = juce::Rectangle<float> (112.0f, 20.0f).withCentre ({ x, y < b.getCentreY() ? y + 22.0f : y - 22.0f });
-                r = r.constrainedWithin (b.reduced (4));
-                g.setColour (col::panelHi.withAlpha (0.95f));
-                g.fillRoundedRectangle (r, 4.0f);
-                g.setColour (col::border);
-                g.drawRoundedRectangle (r, 4.0f, 1.0f);
-                g.setColour (col::text);
-                g.setFont (font (11.0f, true));
-                g.drawText (txt, r, juce::Justification::centred);
+                drawLabel (g, { xForFreq (p.freq), yForGain (juce::jlimit (-rangeDb, rangeDb, p.gainDb)) },
+                           "Analysis  " + freqText (p.freq) + "  " + (p.gainDb >= 0 ? "+" : "") + juce::String (p.gainDb, 1) + " dB", col::accent2);
             }
+        }
+
+        void drawProPoints (juce::Graphics& g)
+        {
+            if (pro == nullptr) return;
+            const int active = dragPro >= 0 ? dragPro : hoverPro;
+            for (int k = 0; k < kProBands; ++k)
+            {
+                const auto b = pro->band (k);
+                if (! b.on) continue;
+                auto c = proBandColour (k);
+                if (! b.active) c = c.withSaturation (0.0f).withAlpha (0.6f);
+                const auto p = proPos (b);
+
+                // EQ dynamique : plage visée (anneau) et gain ajouté en ce moment (point)
+                if (b.dyn && proHasGain (b.type))
+                {
+                    const float yT = yForGain (juce::jlimit (-rangeDb, rangeDb, b.gainDb + b.range));
+                    juce::Path l; l.startNewSubPath (p); l.lineTo (p.x, yT);
+                    juce::Path dashed; const float dash[] = { 3.0f, 3.0f };
+                    juce::PathStrokeType (1.2f).createDashedStroke (dashed, l, dash, 2);
+                    g.setColour (c.withAlpha (0.7f)); g.fillPath (dashed);
+                    g.drawEllipse (juce::Rectangle<float> (9, 9).withCentre ({ p.x, yT }), 1.5f);
+                    const float yN = yForGain (juce::jlimit (-rangeDb, rangeDb, b.gainDb + b.dynDb));
+                    g.fillRoundedRectangle (juce::Rectangle<float> (14, 3).withCentre ({ p.x, yN }), 1.5f);
+                }
+
+                const bool hot = k == active || k == selected;
+                const float r = hot ? 8.5f : 7.0f;
+                g.setColour (col::bg.withAlpha (0.8f));
+                g.fillEllipse (juce::Rectangle<float> (r * 2 + 4, r * 2 + 4).withCentre (p));
+                g.setColour (c);
+                g.fillEllipse (juce::Rectangle<float> (r * 2, r * 2).withCentre (p));
+                if (k == selected) { g.setColour (juce::Colours::white); g.drawEllipse (juce::Rectangle<float> (r * 2 + 3, r * 2 + 3).withCentre (p), 1.5f); }
+                g.setColour (col::bg);
+                g.setFont (font (9.5f, true));
+                g.drawText (juce::String (k + 1), juce::Rectangle<float> (r * 2, r * 2).withCentre (p), juce::Justification::centred);
+                if (pro->getSolo() == k)
+                {
+                    g.setColour (col::warn);
+                    g.drawEllipse (juce::Rectangle<float> (r * 2 + 8, r * 2 + 8).withCentre (p), 1.5f);
+                }
+            }
+            if (active >= 0)
+            {
+                const auto b = pro->band (active);
+                juce::String txt = juce::String (proTypeName (b.type)) + "  " + freqText (b.freq);
+                if (proHasGain (b.type)) txt << "  " << (b.gainDb >= 0 ? "+" : "") << juce::String (b.gainDb, 1) << " dB";
+                txt << "  Q " << juce::String (b.q, 2);
+                if (b.ch != PStereo) txt << "  " << proChannelName (b.ch);
+                if (b.dyn && proHasGain (b.type)) txt << "  DYN";
+                drawLabel (g, proPos (b), txt, proBandColour (active));
+            }
+        }
+
+        void drawLabel (juce::Graphics& g, juce::Point<float> at, const juce::String& txt, juce::Colour c)
+        {
+            const auto b = getLocalBounds().toFloat();
+            g.setFont (font (11.0f, true));
+            const float w = juce::GlyphArrangement::getStringWidth (g.getCurrentFont(), txt) + 18.0f;
+            auto r = juce::Rectangle<float> (w, 20.0f).withCentre ({ at.x, at.y < b.getCentreY() ? at.y + 24.0f : at.y - 24.0f });
+            r = r.constrainedWithin (b.reduced (4));
+            g.setColour (col::panelHi.withAlpha (0.95f));
+            g.fillRoundedRectangle (r, 4.0f);
+            g.setColour (c.withAlpha (0.8f));
+            g.drawRoundedRectangle (r, 4.0f, 1.0f);
+            g.setColour (col::text);
+            g.drawText (txt, r, juce::Justification::centred);
+        }
+
+        void drawPiano (juce::Graphics& g)
+        {
+            const auto b = getLocalBounds().toFloat();
+            const auto strip = juce::Rectangle<float> (b.getX() + 2, b.getBottom() - 16, b.getWidth() - 4, 14);
+            int hotNote = -1;
+            juce::Colour hotCol = col::accent;
+            if (pro != nullptr)
+            {
+                const int k = dragPro >= 0 ? dragPro : (hoverPro >= 0 ? hoverPro : selected);
+                if (k >= 0) { hotNote = juce::roundToInt (69.0f + 12.0f * std::log2 (pro->band (k).freq / 440.0f)); hotCol = proBandColour (k); }
+            }
+            auto noteX = [this] (float midi) { return xForFreq (440.0f * std::pow (2.0f, (midi - 69.0f) / 12.0f)); };
+            auto isBlack = [] (int m) { const int n = ((m % 12) + 12) % 12; return n == 1 || n == 3 || n == 6 || n == 8 || n == 10; };
+
+            g.saveState();
+            g.reduceClipRegion (strip.toNearestInt());
+            g.setColour (juce::Colour (0xffcfd4dc));
+            g.fillRect (strip);
+            for (int pass = 0; pass < 2; ++pass)
+                for (int m = 15; m <= 136; ++m)
+                {
+                    if (isBlack (m) != (pass == 1)) continue;
+                    const float x0 = noteX ((float) m - 0.5f), x1 = noteX ((float) m + 0.5f);
+                    if (x1 < strip.getX() || x0 > strip.getRight()) continue;
+                    const bool hot = m == hotNote;
+                    if (pass == 0)
+                    {
+                        if (hot) { g.setColour (hotCol); g.fillRect (juce::Rectangle<float> (x0, strip.getY(), x1 - x0, strip.getHeight())); }
+                        const int n = ((m % 12) + 12) % 12;
+                        if (n == 0 || n == 5) { g.setColour (juce::Colour (0xff6b717c)); g.drawVerticalLine ((int) x0, strip.getY(), strip.getBottom()); }
+                        if (n == 0 && x1 - x0 > 3.0f)
+                        {
+                            g.setColour (juce::Colour (0xff3a3f48));
+                            g.setFont (font (7.5f, true));
+                            g.drawText ("C" + juce::String (m / 12 - 1), juce::Rectangle<float> (x0 + 1, strip.getBottom() - 8, 16, 8), juce::Justification::centredLeft);
+                        }
+                    }
+                    else
+                    {
+                        g.setColour (hot ? hotCol : juce::Colour (0xff1a1d22));
+                        g.fillRect (juce::Rectangle<float> (x0, strip.getY(), x1 - x0, strip.getHeight() * 0.58f));
+                    }
+                }
+            g.restoreState();
         }
 
         float yForSpec (float db) const
         {
             const auto b = getLocalBounds().toFloat();
-            return b.getY() + 6 + (1.0f - (db + 90.0f) / 90.0f) * (b.getHeight() - 22);
+            return b.getY() + 6 + (1.0f - (db + 90.0f) / 90.0f) * (b.getHeight() - 8 - bottomPad());
         }
 
         void drawSpectrum (juce::Graphics& g, const std::vector<float>& s, juce::Colour c, bool filled)
         {
             if (s.size() < 4) return;
-            const auto b = getLocalBounds().toFloat();
+            const auto pl = plot();
             juce::Path p; bool started = false;
             float lastX = -10;
             for (size_t k = 1; k < s.size(); ++k)
@@ -428,7 +909,7 @@ namespace mp::ui
             if (! started) return;
             if (filled)
             {
-                juce::Path f (p); f.lineTo (lastX, b.getBottom() - 14); f.lineTo (xForFreq (20), b.getBottom() - 14); f.closeSubPath();
+                juce::Path f (p); f.lineTo (lastX, pl.getBottom()); f.lineTo (xForFreq (20), pl.getBottom()); f.closeSubPath();
                 g.setColour (c); g.fillPath (f);
             }
             else
@@ -437,11 +918,35 @@ namespace mp::ui
             }
         }
 
+        // Différence après - avant (ce que le traitement change), sur l'échelle de l'EQ
+        void drawDelta (juce::Graphics& g)
+        {
+            if (specIn.size() < 4 || specIn.size() != specOut.size()) return;
+            const auto b = getLocalBounds().toFloat();
+            juce::Path p; bool started = false;
+            for (float x = b.getX(); x <= b.getRight(); x += 3.0f)
+            {
+                const float f0 = freqForX (x - 1.5f), f1 = freqForX (x + 1.5f);
+                int k0 = juce::jmax (1, (int) std::floor (f0 * fftSize / sampleRate));
+                int k1 = juce::jmin ((int) specIn.size() - 1, (int) std::ceil (f1 * fftSize / sampleRate));
+                if (k1 < k0) k1 = k0;
+                if (k0 >= (int) specIn.size()) break;
+                float d = 0; int cnt = 0;
+                for (int k = k0; k <= k1; ++k) { d += specOut[(size_t) k] - specIn[(size_t) k]; ++cnt; }
+                d = cnt > 0 ? d / (float) cnt : 0.0f;
+                const float y = yForGain (juce::jlimit (-rangeDb, rangeDb, d));
+                if (! started) { p.startNewSubPath (x, y); started = true; } else p.lineTo (x, y);
+            }
+            if (! started) return;
+            g.setColour (col::warn.withAlpha (0.9f));
+            g.strokePath (p, juce::PathStrokeType (1.4f));
+        }
+
         void drawBands (juce::Graphics& g, const Bands& v, juce::Colour c, bool dashed)
         {
             // affichage relatif centré (forme seulement)
             float mean = 0; for (auto x : v) mean += x; mean /= (float) kBands;
-            const auto b = getLocalBounds().toFloat();
+            const auto b = plot();
             juce::Path p;
             for (int i = 0; i < kBands; ++i)
             {

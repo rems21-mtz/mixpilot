@@ -2,6 +2,8 @@
 
 #include "MasterProcessor.h"
 #include "../Shared/UI.h"
+#include "../Shared/ProEqPanel.h"
+#include "../Shared/ScaledEditor.h"
 
 // Zone passive qui affiche une bulle d'aide au survol
 struct HelpZone : public juce::Component, public juce::SettableTooltipClient
@@ -23,13 +25,13 @@ private:
     MasterProcessor& proc;
 };
 
-class MasterEditor : public juce::AudioProcessorEditor,
+class MasterView : public juce::Component,
                      public juce::FileDragAndDropTarget,
                      private juce::Timer
 {
 public:
-    explicit MasterEditor (MasterProcessor&);
-    ~MasterEditor() override;
+    explicit MasterView (MasterProcessor&);
+    ~MasterView() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -69,6 +71,7 @@ private:
     juce::Slider glue, warmth, width, monoBass, push, clipKnob, ceiling, release;
 
     mp::ui::SpectrumView spectrum;
+    std::unique_ptr<mp::ui::BandPanel> bandPanel;
     RefWaveform waveform { proc };
     mp::ui::TipsBar tipsBar;
     std::unique_ptr<mp::ui::HelpOverlay> help;
@@ -86,5 +89,7 @@ private:
     float tpHold = -100;
     std::vector<MasterProcessor::TrackInfo> tracks;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MasterEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MasterView)
 };
+
+using MasterEditor = mp::ui::ScaledEditor<MasterView, MasterProcessor>;
