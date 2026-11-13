@@ -589,7 +589,7 @@ float TrackProcessor::userEqDb (int band) const
 
 float TrackProcessor::getAnalysisBandGainDb (int band) const
 {
-    return jlimit (-9.0f, 6.0f, correction.eqDb[(size_t) band] + correction.mixDb[(size_t) band]);
+    return jlimit (-6.0f, 4.0f, correction.eqDb[(size_t) band] + correction.mixDb[(size_t) band]);
 }
 
 float TrackProcessor::getBandGainDb (int band) const

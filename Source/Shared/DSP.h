@@ -229,6 +229,27 @@ namespace mp
         }
     }
 
+    // Gains de l'EQ par octave qui donnent vraiment "want" au centre de chaque bande :
+    // les cloches voisines se recouvrent, sans compensation la correction réelle dépasse la demande.
+    inline Bands fitOctaveEQ (const Bands& want, float lo = -6.0f, float hi = 6.0f)
+    {
+        constexpr double sr = 48000.0;
+        Bands g = want;
+        for (int it = 0; it < 12; ++it)
+        {
+            Bands resp {};
+            for (int b = 0; b < kBands; ++b)
+            {
+                const auto type = b == 0 ? BiquadCoeffs::LowShelf : (b == kBands - 1 ? BiquadCoeffs::HighShelf : BiquadCoeffs::Peak);
+                const auto c = BiquadCoeffs::make (type, sr, octaveEQFreq (b), b == 0 || b == kBands - 1 ? 0.7 : 1.1, g[(size_t) b]);
+                for (int k = 0; k < kBands; ++k) resp[(size_t) k] += (float) c.magnitudeDb (kBandFreqs[(size_t) k], sr);
+            }
+            for (int k = 0; k < kBands; ++k)
+                g[(size_t) k] = juce::jlimit (lo, hi, g[(size_t) k] + 0.6f * (want[(size_t) k] - resp[(size_t) k]));
+        }
+        return g;
+    }
+
     // -------------------------------------------------------------------------
     //  Compresseur stéréo lié, genou doux
     // -------------------------------------------------------------------------
@@ -275,6 +296,15 @@ namespace mp
             gainReductionDb.store (maxGr);
         }
 
+        // Détection seule : met à jour l'enveloppe et renvoie la réduction (dB, >= 0) sans toucher au signal
+        inline float detectDb (float peak) noexcept
+        {
+            float level = peak;
+            if (rms) { ms = peak * peak + rmsCoeff * (ms - peak * peak); level = std::sqrt (ms) * 1.414f; }
+            computeGain (gainToDb (level));
+            return env;
+        }
+
         float getEnvDb() const { return env; }
         std::atomic<float> gainReductionDb { 0.0f };
 
@@ -308,7 +338,9 @@ namespace mp
             delay.assign ((size_t) (nCh * L), 0.0f);
                         boxRing.assign ((size_t) L, 1.0f);
             dqIdx.assign ((size_t) L + 2, 0); dqVal.assign ((size_t) L + 2, 1.0f);
-            dqHead = dqTail = 0; pos = 0; t = 0; boxSum = (double) L; rel = 1.0f;
+            dqHead = dqTail = 0; pos = 0; t = 0; boxSum = (double) L; rel = 1.0f; slow = 1.0f;
+            slowAtt = std::exp (-1.0f / (float) (0.300 * sr));
+            slowRel = std::exp (-1.0f / (float) (1.000 * sr));
             setRelease (relMs);
         }
 
@@ -335,8 +367,12 @@ namespace mp
                 while (dqIdx[(size_t) dqHead] <= t - L - 1) dqHead = (dqHead + 1) % (int) dqVal.size();
                 const float held = dqVal[(size_t) dqHead];
 
-                // Attaque instantanée, relâchement progressif
-                rel = held < rel ? held : held + relCoeff * (rel - held);
+                // Attaque instantanée. Relâchement en deux temps : rapide vers le niveau "de fond" (slow),
+                // qui suit lui-même lentement la réduction moyenne. Une crête isolée se relâche vite,
+                // une réduction soutenue reste stable (pas de pompage ni de modulation dans les aigus).
+                const float target = held - slowMix * std::max (0.0f, held - slow);
+                rel = held < rel ? held : target + relCoeff * (rel - target);
+                slow = held < slow ? held + slowAtt * (slow - held) : held + slowRel * (slow - held);
 
                 // Moyenne glissante sur L échantillons
                 boxSum += rel - boxRing[(size_t) pos];
@@ -363,6 +399,7 @@ namespace mp
         int L = 64, nCh = 2, pos = 0;
         int64_t t = 0;
         float ceiling = 1.0f, rel = 1.0f, relMs = 100.0f, relCoeff = 0.99f;
+        float slow = 1.0f, slowAtt = 0.9999f, slowRel = 0.9999f, slowMix = 1.0f;
         double boxSum = 0;
         std::vector<float> delay, boxRing, dqVal;
         std::vector<int64_t> dqIdx;

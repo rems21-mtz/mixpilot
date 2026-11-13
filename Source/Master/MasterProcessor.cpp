@@ -147,7 +147,10 @@ void MasterProcessor::prepareToPlay (double sr, int block)
 
     oversampler = std::make_unique<dsp::Oversampling<float>> ((size_t) nCh, 2, dsp::Oversampling<float>::filterHalfBandFIREquiripple, true, true);
     oversampler->initProcessing ((size_t) maxBlock);
-    limiter.prepare (sr, nCh, 1.5f);
+    limiter.prepare (sr, nCh, 3.0f);
+    glueLowDb = glueHighDb = 0; glueMid = glueMidPrev = 0; glueTiltL = glueTiltH = 0; glueAccL = glueAccM = glueAccH = 0; glueCount = 0;
+    for (auto& st : glueLowS) st.reset();
+    for (auto& st : glueHighS) st.reset();
     safetyLimiter.prepare (sr, nCh, 0.7f);
     safetyLimiter.setRelease (40.0f);
     tpDetector.reset(); tpDetector2.reset(); tpMeter.reset();
@@ -258,28 +261,69 @@ void MasterProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
             // attaques lentes sur les médiums et les aigus : les transitoires et l'air passent
             compMid.setParams  (ref - 2.0f - 7.0f * glue, 1.0f + 1.6f * glue, 25, 150, 8);
             compHigh.setParams (ref - 4.0f - 5.0f * glue, 1.0f + 1.0f * glue, 20, 120, 8);
-            bandLow.setSize (nCh, n, false, false, true); bandMid.setSize (nCh, n, false, false, true); bandHigh.setSize (nCh, n, false, false, true);
-            for (int c = 0; c < nCh; ++c)
+            constexpr int kSub = 32;
+            const float tiltK = std::exp (-(float) kSub / (float) (3.0 * currentSR));   // moyenne ~3 s
+            float maxGr = 0.0f;
+            for (int i = 0; i < n; ++i)
             {
-                auto* lo = bandLow.getWritePointer (c); auto* mi = bandMid.getWritePointer (c); auto* hi = bandHigh.getWritePointer (c);
-                for (int i = 0; i < n; ++i)
+                float pl = 0, pm = 0, ph = 0;
+                for (int c = 0; c < nCh; ++c)
                 {
                     const float x = ch[c][i];
-                    lo[i] = ap2.processSample (c, lp1.processSample (c, x));
+                    const float lo = lp1.processSample (c, x);
                     const float rest = hp1.processSample (c, x);
-                    mi[i] = lp2.processSample (c, rest);
-                    hi[i] = hp2.processSample (c, rest);
+                    pl = jmax (pl, std::abs (lo));
+                    pm = jmax (pm, std::abs (lp2.processSample (c, rest)));
+                    ph = jmax (ph, std::abs (hp2.processSample (c, rest)));
+                }
+                const float gl = compLow.detectDb (pl), gm = compMid.detectDb (pm), gh = compHigh.detectDb (ph);
+                glueAccL += gl; glueAccM += gm; glueAccH += gh;
+                maxGr = jmax (maxGr, gl, gm, gh);
+
+                // gain large bande interpolé sur le sous-bloc (en dB de réduction)
+                const float t = (float) (glueCount + 1) / (float) kSub;
+                const float g = mp::dbToGain (-(glueMidPrev + t * (glueMid - glueMidPrev)));
+                for (int c = 0; c < nCh; ++c)
+                {
+                    float y = ch[c][i] * g;
+                    if (glueLowDb != 0.0f)  y = glueLowS[c].process (glueLowC, y);
+                    if (glueHighDb != 0.0f) y = glueHighS[c].process (glueHighC, y);
+                    ch[c][i] = y;
+                }
+
+                if (++glueCount == kSub)
+                {
+                    const float ml = glueAccL / kSub, mm = glueAccM / kSub, mh = glueAccH / kSub;
+                    glueAccL = glueAccM = glueAccH = 0; glueCount = 0;
+                    // réduction relative de chaque bande par rapport aux médiums, moins sa moyenne lente :
+                    // seule la part dynamique est appliquée, l'équilibre tonal réglé par l'EQ ne bouge pas
+                    glueTiltL = (ml - mm) + tiltK * (glueTiltL - (ml - mm));
+                    glueTiltH = (mh - mm) + tiltK * (glueTiltH - (mh - mm));
+                    const float lowDb  = jlimit (-6.0f, 6.0f, -((ml - mm) - glueTiltL));
+                    const float highDb = jlimit (-6.0f, 6.0f, -((mh - mm) - glueTiltH));
+                    glueMidPrev = glueMid; glueMid = mm;
+                    // étagères recalculées seulement si elles bougent (sinon filtre exactement neutre)
+                    auto upd = [this] (float db, float& cur, mp::BiquadCoeffs& cf, mp::BiquadState* st, mp::BiquadCoeffs::Type ty, double f)
+                    {
+                        const float q = std::abs (db) < 0.02f ? 0.0f : db;
+                        if (q == cur) return;
+                        if (q == 0.0f) { st[0].reset(); st[1].reset(); }
+                        cur = q;
+                        if (q != 0.0f) cf = mp::BiquadCoeffs::make (ty, currentSR, f, 0.7071, q);
+                    };
+                    upd (lowDb,  glueLowDb,  glueLowC,  glueLowS,  mp::BiquadCoeffs::LowShelf,  120.0);
+                    upd (highDb, glueHighDb, glueHighC, glueHighS, mp::BiquadCoeffs::HighShelf, 2500.0);
                 }
             }
-            compLow.process (bandLow); compMid.process (bandMid); compHigh.process (bandHigh);
-            for (int c = 0; c < nCh; ++c)
-            {
-                auto* lo = bandLow.getReadPointer (c); auto* mi = bandMid.getReadPointer (c); auto* hi = bandHigh.getReadPointer (c);
-                for (int i = 0; i < n; ++i) ch[c][i] = lo[i] + mi[i] + hi[i];
-            }
-            glueGrDb.store (jmax (compLow.gainReductionDb.load(), compMid.gainReductionDb.load(), compHigh.gainReductionDb.load()));
+            glueGrDb.store (maxGr);
         }
-        else glueGrDb.store (0.0f);
+        else
+        {
+            glueGrDb.store (0.0f);
+            glueLowDb = glueHighDb = 0; glueMid = glueMidPrev = 0; glueTiltL = glueTiltH = 0;
+            for (auto& st : glueLowS) st.reset();
+            for (auto& st : glueHighS) st.reset();
+        }
 
         // 3) Image stéréo --------------------------------------------------------
         const float width = param ("width"), mono = param ("monoBass");
@@ -471,8 +515,9 @@ void MasterProcessor::resolveFromLearned()
     for (int k = 0; k < mp::kBands; ++k)
     {
         const float achieved = lastCorrection.trackDb[(size_t) k] * trackEfficiency[(size_t) k];
-        lastCorrection.eqDb[(size_t) k] = jlimit (-4.0f, 4.0f, lastCorrection.mixDiff[(size_t) k] - achieved);
+        lastCorrection.eqDb[(size_t) k] = jlimit (-6.0f, 6.0f, lastCorrection.mixDiff[(size_t) k] - achieved);
     }
+    lastCorrection.eqDb = mp::fitOctaveEQ (lastCorrection.eqDb);
     applyCorrection (lastCorrection);
     publishMixCorrection (lastCorrection.trackDb);
 }

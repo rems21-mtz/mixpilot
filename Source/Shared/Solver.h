@@ -40,6 +40,18 @@ namespace mp
         return o;
     }
 
+    // Lissage léger (Master) : garde les corrections étroites qu'un lissage fort efface
+    inline Bands smoothLight (const Bands& b)
+    {
+        Bands o;
+        for (int i = 0; i < kBands; ++i)
+        {
+            const float l = b[(size_t) std::max (0, i - 1)], r = b[(size_t) std::min (kBands - 1, i + 1)];
+            o[(size_t) i] = 0.15f * l + 0.7f * b[(size_t) i] + 0.15f * r;
+        }
+        return o;
+    }
+
     // Petits ajustements d'équilibre selon la sortie visée
     inline float outputLevelOffset (int output, int inst)
     {
@@ -91,10 +103,10 @@ namespace mp
                     if (b <= 2 && ((inst == Bass && o.instrument == Kick) || (inst == Kick && o.instrument == Bass))) continue;
                     const bool mine   = me.bandsDb[(size_t) b] > myMax - 9.0f;
                     const bool theirs = o.bandsDb[(size_t) b]  > oMax  - 6.0f;
-                    if (mine && theirs) dip[(size_t) b] -= 1.5f;
+                    if (mine && theirs) dip[(size_t) b] -= 1.0f;
                 }
             }
-            for (auto& d : dip) d = std::max (d, -3.0f);
+            for (auto& d : dip) d = std::max (d, -2.0f);
             dip = smooth3 (dip);
 
             for (int b = 0; b < kBands; ++b)
@@ -103,9 +115,10 @@ namespace mp
                 if (kBandFreqs[(size_t) b] < c.hpfHz * 1.2f) diff[(size_t) b] = 0;
                 // pas de boost là où l'instrument n'a presque rien (on monterait du bruit)
                 if (me.bandsDb[(size_t) b] < myMax - 30.0f) diff[(size_t) b] = std::min (diff[(size_t) b], 0.0f);
-                const float match = juce::jlimit (-5.0f, 4.0f, diff[(size_t) b] * 0.7f);
+                // correction modérée : le Master complète, inutile que chaque piste force sa forme
+                const float match = juce::jlimit (-3.0f, 3.0f, diff[(size_t) b] * 0.5f);
                 c.maskDb[(size_t) b] = dip[(size_t) b] * amount;
-                c.eqDb[(size_t) b]   = juce::jlimit (-6.0f, 4.0f, (match + dip[(size_t) b]) * amount);
+                c.eqDb[(size_t) b]   = juce::jlimit (-4.0f, 3.0f, (match + dip[(size_t) b]) * amount);
             }
         }
 
@@ -185,10 +198,12 @@ namespace mp
             const Bands targ = normalised (target.curve, w);
             Bands diff {};
             for (int b = 0; b < kBands; ++b) diff[(size_t) b] = (targ[(size_t) b] - meas[(size_t) b]) * w[(size_t) b];
-            diff = smooth3 (diff);
+            diff = smoothLight (diff);
+            // une référence est suivie entièrement (comme un matching), un style un peu moins
+            const float follow = target.refSideRatio >= 0 ? 1.0f : 0.9f;
             for (int b = 0; b < kBands; ++b)
             {
-                const float d = juce::jlimit (-6.0f, 6.0f, diff[(size_t) b] * 0.9f) * amount;
+                const float d = juce::jlimit (-6.0f, 6.0f, diff[(size_t) b] * follow) * amount;
                 m.mixDiff[(size_t) b] = d;
                 m.eqDb[(size_t) b]    = juce::jlimit (-6.0f, 5.0f, d * (1.0f - share));
                 m.trackDb[(size_t) b] = d - m.eqDb[(size_t) b];
@@ -205,7 +220,9 @@ namespace mp
             m.width = 1.0f + (juce::jlimit (0.7f, 1.25f, w) - 1.0f) * amount;   // au-delà, les aigus deviennent durs
         }
         // écrêtage doux : surtout utile quand on vise fort (sorties non normalisées)
-        m.clip = gp.clip * (outputIsNormalised (output) ? 0.5f : 1.0f) * juce::jmin (1.0f, amount / 0.8f);
+        // pas d'écrêtage automatique : mesuré, il n'apporte presque aucun volume (le limiteur fait le travail)
+        // mais ajoute de l'intermodulation dans les aigus. Le réglage CLIP reste disponible à la main.
+        m.clip = 0.0f;
         m.warmth     = gp.warmth * amount;
         m.monoBassHz = op.monoBassHz;
         m.highTameDb = op.highTameDb;

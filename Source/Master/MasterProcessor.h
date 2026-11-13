@@ -113,6 +113,13 @@ private:
     std::atomic<float>* eqShiftParams[mp::kBands] {};
     juce::dsp::LinkwitzRileyFilter<float> lp1, hp1, lp2, hp2, ap2;
     mp::Compressor compLow, compMid, compHigh;
+    // Glue : les bandes ne servent qu'à la détection ; la réduction est appliquée au signal complet
+    // (gain + deux étagères), donc aucun décalage de phase au repos et un équilibre tonal conservé
+    mp::BiquadCoeffs glueLowC, glueHighC;
+    mp::BiquadState  glueLowS[2], glueHighS[2];
+    float glueAccL = 0, glueAccM = 0, glueAccH = 0, glueTiltL = 0, glueTiltH = 0, glueMid = 0, glueMidPrev = 0;
+    float glueLowDb = 0, glueHighDb = 0;
+    int   glueCount = 0;
     juce::AudioBuffer<float> bandLow, bandMid, bandHigh, dryDelayBuf;
     mp::BiquadState sideHp; mp::BiquadCoeffs sideHpCoeffs; float sideHpFreq = -1;
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;

@@ -69,7 +69,7 @@ jobs:
           git add *.zip
           git commit -q -m "Windows build from ${GITHUB_SHA::7}"
           # les branches feature/* publient un aperçu sans toucher aux builds officiels
-          case "$GITHUB_REF_NAME" in feature/*) D="dist-preview-windows" ;; *) D="dist-windows" ;; esac
+          case "$GITHUB_REF_NAME" in feature/*|claude/*) D="dist-preview-windows" ;; *) D="dist-windows" ;; esac
           git push -f origin "dist-tmp:$D"
 
   macos:
@@ -145,7 +145,7 @@ jobs:
           git add *.zip
           git commit -q -m "macOS build from ${GITHUB_SHA::7}"
           # les branches feature/* publient un aperçu sans toucher aux builds officiels
-          case "$GITHUB_REF_NAME" in feature/*) D="dist-preview" ;; *) D="dist" ;; esac
+          case "$GITHUB_REF_NAME" in feature/*|claude/*) D="dist-preview" ;; *) D="dist" ;; esac
           git push -f origin "dist-tmp:$D"
 
   linux:
@@ -239,5 +239,5 @@ jobs:
           git add *.zip
           git commit -q -m "Linux build from ${GITHUB_SHA::7}"
           # les branches feature/* publient un aperçu sans toucher aux builds officiels
-          case "$GITHUB_REF_NAME" in feature/*) D="dist-preview-linux" ;; *) D="dist-linux" ;; esac
+          case "$GITHUB_REF_NAME" in feature/*|claude/*) D="dist-preview-linux" ;; *) D="dist-linux" ;; esac
           git push -f origin "dist-tmp:$D"
