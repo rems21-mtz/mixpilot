@@ -459,6 +459,8 @@ void MasterView::paint (Graphics& g)
     g.drawText ("MIXPILOT", 18, 12, 110, 32, Justification::centredLeft);
     g.setColour (col::accent);
     g.drawText ("MASTER", 122, 12, 90, 32, Justification::centredLeft);
+    g.setFont (font (10.0f, false)); g.setColour (col::textDim);
+    g.drawText ("v" JucePlugin_VersionString, 19, 41, 80, 12, Justification::centredLeft);
 
     g.setFont (font (10.0f, true)); g.setColour (col::textDim);
     g.drawText ("STYLE",   genreBox.getX(),     4, 100, 12, Justification::left);

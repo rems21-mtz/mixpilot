@@ -253,6 +253,8 @@ void TrackView::paint (Graphics& g)
     g.setFont (font (20.0f, true));
     g.setColour (col::text);   g.drawText ("MIXPILOT", 18, 12, 110, 32, Justification::centredLeft);
     g.setColour (col::accent2); g.drawText ("TRACK", 122, 12, 80, 32, Justification::centredLeft);
+    g.setFont (font (10.0f, false)); g.setColour (col::textDim);
+    g.drawText ("v" JucePlugin_VersionString, 19, 41, 80, 12, Justification::centredLeft);
 
     {
         auto r = linkArea.toFloat();
