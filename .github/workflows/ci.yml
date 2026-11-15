@@ -1,0 +1,119 @@
+name: CI build + pluginval
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+env:
+  # Cibles juce_add_plugin a compiler et tester (separees par des espaces)
+  TARGETS: "MixPilotMaster MixPilotTrack"
+  # Si non vide : JUCE est clone a ce tag et passe via -DJUCE_DIR
+  JUCE_TAG: ""
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS
+          - os: windows-latest
+            name: Windows
+          - os: ubuntu-22.04
+            name: Linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependances Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libjack-jackd2-dev libcurl4-openssl-dev \
+            libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev \
+            libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev \
+            mesa-common-dev ladspa-sdk libwebkit2gtk-4.0-dev libgtk-3-dev xvfb zip
+
+      - name: JUCE local
+        if: env.JUCE_TAG != ''
+        shell: bash
+        run: |
+          git clone --depth 1 --branch "$JUCE_TAG" https://github.com/juce-framework/JUCE.git "$RUNNER_TEMP/JUCE"
+          echo "JUCE_ARG=-DJUCE_DIR=$RUNNER_TEMP/JUCE" >> "$GITHUB_ENV"
+
+      - name: Configure
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cmake -S . -B build -A x64 $JUCE_ARG
+          else
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $JUCE_ARG
+          fi
+
+      - name: Build VST3
+        shell: bash
+        run: |
+          for t in $TARGETS; do
+            cmake --build build --config Release --target "${t}_VST3" --parallel 4
+          done
+
+      - name: pluginval
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS)   asset=pluginval_macOS.zip;   bin=pv/pluginval.app/Contents/MacOS/pluginval ;;
+            Windows) asset=pluginval_Windows.zip; bin=pv/pluginval.exe ;;
+            Linux)   asset=pluginval_Linux.zip;   bin=pv/pluginval ;;
+          esac
+          curl -sSL -o pv.zip "https://github.com/Tracktion/pluginval/releases/latest/download/$asset"
+          unzip -q pv.zip -d pv
+          chmod +x "$bin" 2>/dev/null || true
+          runner=""
+          [ "$RUNNER_OS" = "Linux" ] && runner="xvfb-run -a"
+          fail=0
+          for t in $TARGETS; do
+            for p in build/"${t}"_artefacts/Release/VST3/*.vst3; do
+              echo "::group::pluginval $p"
+              if $runner "$bin" --strictness-level 5 --skip-gui-tests --timeout-ms 300000 --validate "$p"; then
+                echo "PASS: $p"
+              else
+                echo "::error::pluginval FAIL: $p"
+                fail=1
+              fi
+              echo "::endgroup::"
+            done
+          done
+          exit $fail
+
+      - name: Package
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p dist
+          repo="${GITHUB_REPOSITORY#*/}"
+          for t in $TARGETS; do
+            d="build/${t}_artefacts/Release/VST3"
+            [ -d "$d" ] || continue
+            out="$GITHUB_WORKSPACE/dist/${repo}-${t}-${{ matrix.name }}-VST3.zip"
+            if [ "$RUNNER_OS" = "Windows" ]; then
+              (cd "$d" && 7z a -tzip "$out" ./*.vst3 > /dev/null)
+            else
+              (cd "$d" && zip -qr "$out" ./*.vst3)
+            fi
+          done
+          ls -la dist
+
+      - name: Upload vers la Release ci-latest
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls dist/*.zip >/dev/null 2>&1 || exit 0
+          gh release view ci-latest >/dev/null 2>&1 || gh release create ci-latest --title "CI latest" --notes "Builds CI (non signes)" --draft || true
+          gh release upload ci-latest dist/*.zip --clobber
